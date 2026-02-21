@@ -1,0 +1,102 @@
+# LegalLLM
+
+[![CI](https://github.com/<your-username>/LegalLLM/actions/workflows/ci.yml/badge.svg)](https://github.com/<your-username>/LegalLLM/actions/workflows/ci.yml)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+Benchmark-grade legal facts dataset pipeline for citation prediction research.
+
+Extracts "Statement of Facts" sections from U.S. court merits briefs sourced via [CourtListener](https://www.courtlistener.com/)/RECAP, producing structured datasets for legal citation prediction experiments.
+
+## Features
+
+- **CourtListener API integration** - searches RECAP documents with paginated result handling
+- **Multi-strategy PDF acquisition** - resolves PDF URLs via `filepath_local`, direct fields, or webpage scraping
+- **Robust text extraction** - pypdf primary, PyMuPDF fallback, with intelligent quality comparison
+- **Selective OCR** - page-level OCR via PyMuPDF + Tesseract only where native extraction fails
+- **Rule-based facts extraction** - 3-tier heading detection (exact, soft, fallback) with TOC skipping
+- **Scope filtering** - focuses on merits briefs, excludes motions, amicus, and administrative filings
+- **Quality flags** - citation density and argument marker metrics per extracted span
+- **Structured diagnostics** - detailed failure logs (JSONL) for iterative pipeline improvement
+
+## Quick Start
+
+```bash
+# Install
+pip install -e ".[dev]"
+
+# Set your CourtListener API token
+export CL_TOKEN=your_courtlistener_api_token
+
+# Run the pipeline
+legallm --query "merits brief" --max_docs 100
+```
+
+## Usage
+
+```bash
+# Basic run
+legallm --query "patent infringement" --max_docs 500
+
+# With OCR enabled
+legallm --query "merits brief" --max_docs 200 --enable_ocr --tessdata /path/to/tessdata
+
+# Custom output paths
+legallm --query "merits brief" --out_parquet output/facts.parquet --failures_jsonl output/failures.jsonl
+```
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `CL_TOKEN` | Yes | CourtListener API authentication token |
+| `TESSDATA_PREFIX` | For OCR | Path to Tesseract tessdata directory |
+
+## Project Structure
+
+```
+src/legallm/
+  __init__.py          # Package init with version
+  cli.py               # CLI entry point
+  ocr_decision.py      # Shared OCR decision heuristics
+  ocr_backend.py       # PyMuPDF + Tesseract selective OCR
+  pipeline.py          # End-to-end extraction pipeline
+tests/
+  conftest.py          # Shared test fixtures
+  test_ocr_decision.py # OCR decision logic tests
+  test_pipeline.py     # Pipeline function tests
+  test_ocr_backend.py  # OCR backend tests
+```
+
+## Output Data
+
+- **`facts_dataset.parquet`** - extracted facts spans with metadata and quality flags
+- **`facts_failures.jsonl`** - per-document failure reasons with diagnostics
+
+See [data/README.md](data/README.md) for full schema details.
+
+## Development
+
+```bash
+# Clone and install
+git clone https://github.com/<your-username>/LegalLLM.git
+cd LegalLLM
+pip install -e ".[dev]"
+pre-commit install
+
+# Run tests
+pytest tests/ -v
+
+# Lint and format
+ruff check src/ tests/
+ruff format src/ tests/
+
+# Type check
+mypy src/legallm/
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full development guidelines.
+
+## License
+
+[MIT](LICENSE)
