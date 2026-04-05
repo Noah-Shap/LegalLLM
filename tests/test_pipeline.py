@@ -2,6 +2,7 @@
 
 from legallm.pipeline import (
     candidate_pdf_urls,
+    derive_doc_type_id,
     in_scope_brief,
     normalize_text,
 )
@@ -114,3 +115,45 @@ def test_candidate_pdf_urls_no_duplicates():
     url = "https://www.courtlistener.com/recap/test.pdf"
     result = candidate_pdf_urls(url)
     assert len(result) == len(set(result))
+
+
+# ---- derive_doc_type_id ----
+
+
+def test_derive_doc_type_scotus():
+    item = {"court": "scotus", "short_description": "Brief on the merits"}
+    assert derive_doc_type_id(item) == "MERITS_SCOTUS"
+
+
+def test_derive_doc_type_cert_petition():
+    item = {"court": "scotus", "short_description": "Petition for certiorari"}
+    assert derive_doc_type_id(item) == "CERT_PETITION"
+
+
+def test_derive_doc_type_federal_appellate_opening():
+    item = {"court": "ca9", "short_description": "Opening Brief of Appellant"}
+    assert derive_doc_type_id(item) == "FEDERAL_APPELLATE_OPENING"
+
+
+def test_derive_doc_type_federal_appellate_response():
+    item = {"court": "ca3", "short_description": "Response Brief of Appellee"}
+    assert derive_doc_type_id(item) == "FEDERAL_APPELLATE_RESPONSE"
+
+
+def test_derive_doc_type_district():
+    item = {"court": "nysd", "short_description": "Opening Brief of Appellant"}
+    assert derive_doc_type_id(item) == "DISTRICT_COURT"
+
+
+def test_derive_doc_type_state_appellate():
+    item = {"court": "nyapp", "short_description": "Brief"}
+    assert derive_doc_type_id(item) == "STATE_APPELLATE"
+
+
+def test_derive_doc_type_unknown():
+    item = {"short_description": "Brief"}
+    assert derive_doc_type_id(item) == "UNKNOWN"
+
+
+def test_derive_doc_type_empty_item():
+    assert derive_doc_type_id({}) == "UNKNOWN"

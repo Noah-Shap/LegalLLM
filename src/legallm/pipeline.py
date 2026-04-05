@@ -17,6 +17,8 @@ from requests.adapters import HTTPAdapter
 from tqdm import tqdm
 from urllib3.util.retry import Retry
 
+from legallm.build_manifest import create_manifest, finalize_manifest, write_manifest
+from legallm.citation_extractor import citation_summary, extract_citations, mask_citations
 from legallm.facts_extractor import extract_facts_span, heading_candidates, quality_flags
 from legallm.ocr_decision import OcrDecisionConfig, should_ocr_document
 
@@ -452,6 +454,53 @@ def in_scope_brief(item: dict[str, Any], exclude_motion_briefs: bool = False) ->
     return True
 
 
+# -----------------------------
+# Document-type classification
+# -----------------------------
+# Maps CourtListener metadata to the doc_type_id used by facts_extractor
+# for heading policy decisions (e.g., whether INTRODUCTION is factual).
+
+# CourtListener court IDs that indicate federal appellate courts.
+_FEDERAL_APPELLATE_COURTS = re.compile(r"(?i)\b(ca\d{1,2}|cafc|cadc|circuit)\b")
+_SCOTUS_COURTS = re.compile(r"(?i)\b(scotus|supreme\s+court\s+of\s+the\s+united\s+states)\b")
+_DISTRICT_COURTS = re.compile(r"(?i)\b(district|[a-z]{2,4}d)\b")
+
+
+def derive_doc_type_id(item: dict[str, Any]) -> str:
+    """Derive a doc_type_id from CourtListener search result metadata.
+
+    Uses court field, short_description, and description to classify the
+    document into one of the types defined in facts_extractor.DOC_TYPE_HEADING_POLICY.
+    """
+    court = (item.get("court") or item.get("court_id") or "").lower()
+    sd = (item.get("short_description") or "").lower()
+    desc = (item.get("description") or "").lower()
+    text = sd or desc
+
+    # SCOTUS
+    if _SCOTUS_COURTS.search(court) or "supreme court" in text:
+        if "certiorari" in text or "petition" in text:
+            return "CERT_PETITION"
+        return "MERITS_SCOTUS"
+
+    # Federal appellate
+    if _FEDERAL_APPELLATE_COURTS.search(court) or "circuit" in court or "court of appeals" in text:
+        if any(k in text for k in ["response", "appellee", "respondent", "answering"]):
+            return "FEDERAL_APPELLATE_RESPONSE"
+        return "FEDERAL_APPELLATE_OPENING"
+
+    # District court
+    if _DISTRICT_COURTS.search(court) or "district" in text:
+        return "DISTRICT_COURT"
+
+    # State appellate (heuristic: if court name doesn't match federal patterns
+    # but text mentions appellate-level terms)
+    if any(k in court for k in ["app", "appellate", "supreme"]):
+        return "STATE_APPELLATE"
+
+    return "UNKNOWN"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--query", type=str, required=True)
@@ -459,6 +508,7 @@ def main():
     ap.add_argument("--out_parquet", type=str, default="data/processed/facts_dataset.parquet")
     ap.add_argument("--failures_jsonl", type=str, default="data/processed/facts_failures.jsonl")
     ap.add_argument("--raw_pdf_dir", type=str, default="data/raw/pdfs")
+    ap.add_argument("--manifest_json", type=str, default="data/processed/build_manifest.json")
     ap.add_argument("--dump_first", action="store_true", help="Print the first search hit JSON keys for debugging.")
     ap.add_argument(
         "--search_fields",
@@ -556,6 +606,17 @@ def main():
             return text_ocr, meta_ocr
         except Exception as e:
             return None, {"error": f"{type(e).__name__}: {e}"}
+
+    # Build manifest
+    build_params = {
+        "query": args.query,
+        "max_docs": args.max_docs,
+        "enable_ocr": ocr_enabled,
+        "no_scope_filter": args.no_scope_filter,
+        "exclude_motion_briefs": args.exclude_motion_briefs,
+    }
+    manifest = create_manifest(build_params)
+    print(f"Build ID: {manifest.build_id}")
 
     s = cl_session()
 
@@ -719,7 +780,8 @@ def main():
                         + "\n"
                     )
                     continue
-            span, meta_span = extract_facts_span(clean)
+            doc_type_id = derive_doc_type_id(item)
+            span, meta_span = extract_facts_span(clean, doc_type_id=doc_type_id)
             if not span:
                 failures += 1
                 f_fail.write(
@@ -741,19 +803,29 @@ def main():
             facts = clean[a:b]
             flags = quality_flags(facts)
 
+            # Citation extraction + masking
+            cite_result = extract_citations(facts)
+            cite_stats = citation_summary(cite_result)
+            facts_masked = mask_citations(facts)
+
             rows.append(
                 {
                     "search_result_id": search_id,
+                    "build_id": manifest.build_id,
                     "short_description": item.get("short_description"),
                     "document_type": item.get("document_type"),
+                    "doc_type_id": doc_type_id,
                     "pdf_url": pdf_url,
                     "pdf_url_strategy": meta_pdf.get("strategy"),
                     "facts_start": a,
                     "facts_end": b,
                     "facts_text": facts,
+                    "facts_text_masked": facts_masked,
                     "extractor_method": meta_span.get("method"),
                     "extractor_notes": ";".join(meta_span.get("notes", [])),
+                    "extractor_confidence": meta_span.get("confidence"),
                     **flags,
+                    **cite_stats,
                 }
             )
 
@@ -762,6 +834,16 @@ def main():
     print(f"Wrote: {args.out_parquet}")
     print(f"Extracted facts spans: {len(df)}")
     print(f"Failures: {failures} (see {args.failures_jsonl})")
+
+    # Write build manifest
+    results = {
+        "total_hits": len(hits),
+        "extracted_spans": len(df),
+        "failures": failures,
+    }
+    finalize_manifest(manifest, results)
+    manifest_path = write_manifest(manifest, args.manifest_json)
+    print(f"Manifest: {manifest_path}")
 
 
 if __name__ == "__main__":
