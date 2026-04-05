@@ -877,7 +877,8 @@ def main():
             # Citation resolution (optional)
             targets_case_ids: list[str] = []
             resolved_count = 0
-            if resolve_enabled and resolver_config is not None and resolver_cache is not None and resolver_budget is not None:
+            resolver_ready = resolver_config is not None and resolver_cache is not None and resolver_budget is not None
+            if resolve_enabled and resolver_ready:
                 from legallm.citation_resolver import resolve_citations
 
                 resolved_cites, targets_case_ids, _r_metrics = resolve_citations(
