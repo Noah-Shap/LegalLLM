@@ -557,6 +557,18 @@ def main():
         help="Exclude briefs that are actually motion/memo filings (based on description).",
     )
 
+    # Citation resolver (optional)
+    ap.add_argument(
+        "--resolve_citations",
+        action="store_true",
+        help="Enable citation resolution via CourtListener API.",
+    )
+    ap.add_argument("--resolver_cache_path", type=str, default="data/processed/citation_cache.json")
+    ap.add_argument("--resolver_budget_per_build", type=int, default=10_000)
+    ap.add_argument("--resolver_budget_per_hour", type=int, default=5_000)
+    ap.add_argument("--resolver_min_confidence", type=float, default=0.90)
+    ap.add_argument("--resolver_batch_size", type=int, default=50)
+
     # OCR integration (optional)
     ap.add_argument(
         "--enable_ocr", action="store_true", help="If set, attempt PyMuPDF+Tesseract OCR for PDFs flagged needs_ocr."
@@ -637,11 +649,35 @@ def main():
         except Exception as e:
             return None, {"error": f"{type(e).__name__}: {e}"}
 
+    # Citation resolver setup (optional)
+    resolve_enabled = False
+    resolver_config = None
+    resolver_cache = None
+    resolver_budget = None
+    if args.resolve_citations:
+        from legallm.citation_resolver import BudgetTracker, CitationCache, ResolverConfig
+
+        resolver_config = ResolverConfig(
+            min_confidence=args.resolver_min_confidence,
+            batch_size=args.resolver_batch_size,
+            budget_per_build=args.resolver_budget_per_build,
+            budget_per_hour=args.resolver_budget_per_hour,
+            cache_path=Path(args.resolver_cache_path),
+        )
+        resolver_cache = CitationCache(resolver_config.cache_path)
+        resolver_budget = BudgetTracker(
+            budget_per_build=resolver_config.budget_per_build,
+            budget_per_hour=resolver_config.budget_per_hour,
+        )
+        resolve_enabled = True
+        print(f"Citation resolver enabled (cache: {resolver_config.cache_path})")
+
     # Build manifest
     build_params = {
         "query": args.query,
         "max_docs": args.max_docs,
         "enable_ocr": ocr_enabled,
+        "resolve_citations": resolve_enabled,
         "no_scope_filter": args.no_scope_filter,
         "exclude_motion_briefs": args.exclude_motion_briefs,
     }
@@ -838,6 +874,17 @@ def main():
             cite_stats = citation_summary(cite_result)
             facts_masked = mask_citations(facts)
 
+            # Citation resolution (optional)
+            targets_case_ids: list[str] = []
+            resolved_count = 0
+            if resolve_enabled and resolver_config and resolver_cache and resolver_budget:
+                from legallm.citation_resolver import resolve_citations
+
+                resolved_cites, targets_case_ids, _r_metrics = resolve_citations(
+                    cite_result.case_citations, s, resolver_config, resolver_cache, resolver_budget
+                )
+                resolved_count = _r_metrics.resolved_count
+
             rows.append(
                 {
                     "search_result_id": search_id,
@@ -854,6 +901,8 @@ def main():
                     "extractor_method": meta_span.get("method"),
                     "extractor_notes": ";".join(meta_span.get("notes", [])),
                     "extractor_confidence": meta_span.get("confidence"),
+                    "targets_case_ids": json.dumps(targets_case_ids),
+                    "resolved_citation_count": resolved_count,
                     **flags,
                     **cite_stats,
                 }
@@ -866,11 +915,16 @@ def main():
     print(f"Failures: {failures} (see {args.failures_jsonl})")
 
     # Write build manifest
-    results = {
+    results: dict[str, Any] = {
         "total_hits": len(hits),
         "extracted_spans": len(df),
         "failures": failures,
     }
+    if resolve_enabled and resolver_cache and resolver_budget:
+        results["resolver_enabled"] = True
+        results["resolver_api_calls"] = resolver_budget.build_count
+        results["resolver_cache_entries"] = len(resolver_cache)
+        results["resolver_cache_hit_rate"] = round(resolver_cache.hit_rate(), 3)
     finalize_manifest(manifest, results)
     manifest_path = write_manifest(manifest, args.manifest_json)
     print(f"Manifest: {manifest_path}")
