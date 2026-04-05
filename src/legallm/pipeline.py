@@ -877,7 +877,7 @@ def main():
             # Citation resolution (optional)
             targets_case_ids: list[str] = []
             resolved_count = 0
-            if resolve_enabled and resolver_config and resolver_cache and resolver_budget:
+            if resolve_enabled and resolver_config is not None and resolver_cache is not None and resolver_budget is not None:
                 from legallm.citation_resolver import resolve_citations
 
                 resolved_cites, targets_case_ids, _r_metrics = resolve_citations(
@@ -920,7 +920,7 @@ def main():
         "extracted_spans": len(df),
         "failures": failures,
     }
-    if resolve_enabled and resolver_cache and resolver_budget:
+    if resolve_enabled and resolver_cache is not None and resolver_budget is not None:
         results["resolver_enabled"] = True
         results["resolver_api_calls"] = resolver_budget.build_count
         results["resolver_cache_entries"] = len(resolver_cache)
