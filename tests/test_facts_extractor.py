@@ -130,18 +130,34 @@ class TestClassifyAndMerge:
             assert s.role in ("facts", "procedural_history")
 
     def test_merge_limit_enforced(self):
-        """More than 4 consecutive fact-like sections triggers merge limit warning."""
+        """More than max_merge consecutive fact-like sections triggers merge limit warning."""
         parts = []
-        for i in range(6):
-            heading = f"STATEMENT OF FACTS PART {chr(65 + i)}" if i < 5 else "PROCEDURAL HISTORY"
+        for i in range(8):
+            heading = f"STATEMENT OF FACTS PART {chr(65 + i)}" if i < 7 else "PROCEDURAL HISTORY"
             parts.append(f"{heading}\n\n{'Content about events. ' * 30}\n\n")
         parts.append("ARGUMENT\n\nThe law supports our position.\n")
         text = "\n".join(parts)
 
         heading_map, _, _ = build_heading_map(text)
         sections = classify_sections(heading_map, len(text))
+        # Default max_merge=6
         merged, notes = merge_fact_sections(sections)
-        assert len(merged) <= 4
+        assert len(merged) <= 6
+        assert "merge_limit_warning" in notes
+
+    def test_merge_limit_custom(self):
+        """Custom max_merge parameter is respected."""
+        parts = []
+        for i in range(5):
+            heading = f"STATEMENT OF FACTS PART {chr(65 + i)}" if i < 4 else "PROCEDURAL HISTORY"
+            parts.append(f"{heading}\n\n{'Content about events. ' * 30}\n\n")
+        parts.append("ARGUMENT\n\nThe law supports our position.\n")
+        text = "\n".join(parts)
+
+        heading_map, _, _ = build_heading_map(text)
+        sections = classify_sections(heading_map, len(text))
+        merged, notes = merge_fact_sections(sections, max_merge=3)
+        assert len(merged) <= 3
         assert "merge_limit_warning" in notes
 
     def test_counter_statement_detected(self, sample_brief_counter_statement):

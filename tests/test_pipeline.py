@@ -86,6 +86,32 @@ def test_in_scope_brief_falls_back_to_description():
     assert in_scope_brief(item) is True
 
 
+def test_in_scope_brief_bare_brief_accepted():
+    """A filing labeled just 'Brief' (no role keyword) should now be accepted."""
+    item = {"short_description": "Brief"}
+    assert in_scope_brief(item) is True
+
+
+def test_in_scope_brief_merits_brief_accepted():
+    item = {"short_description": "Merits Brief"}
+    assert in_scope_brief(item) is True
+
+
+def test_in_scope_brief_order_prefix_rejected():
+    item = {"short_description": "Order on Brief Schedule"}
+    assert in_scope_brief(item) is False
+
+
+def test_in_scope_brief_notice_of_appeal_rejected():
+    item = {"short_description": "Brief with notice of appeal attachment"}
+    assert in_scope_brief(item) is False
+
+
+def test_in_scope_brief_transcript_rejected():
+    item = {"short_description": "Brief transcript excerpt"}
+    assert in_scope_brief(item) is False
+
+
 # ---- candidate_pdf_urls ----
 
 

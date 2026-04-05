@@ -467,8 +467,14 @@ def classify_sections(heading_map: list[HeadingEntry], text_len: int) -> list[Se
 
 def merge_fact_sections(
     sections: list[SectionSpan],
+    max_merge: int = 6,
 ) -> tuple[list[SectionSpan], list[str]]:
     """Merge adjacent fact-like sections.
+
+    Args:
+        sections: Classified section spans from Phase B.
+        max_merge: Maximum number of contiguous fact-like sections to merge.
+            Sections beyond this limit are dropped with a warning.
 
     Returns (merged_groups, notes) where merged_groups is the best contiguous
     group of fact-like sections.
@@ -499,10 +505,10 @@ def merge_fact_sections(
         key=lambda g: sum(s.heading.confidence for s in g if s.heading),
     )
 
-    # Enforce max merge count of 4.
-    if len(best_group) > 4:
+    # Enforce max merge count.
+    if len(best_group) > max_merge:
         notes.append("merge_limit_warning")
-        best_group = best_group[:4]
+        best_group = best_group[:max_merge]
 
     if len(best_group) > 1:
         notes.append(f"merged_{len(best_group)}_sections")
@@ -665,7 +671,11 @@ def validate_span(
 # ---------------------------------------------------------------------------
 
 
-def extract_facts_span(clean: str, doc_type_id: str = "UNKNOWN") -> tuple[tuple[int, int] | None, dict[str, Any]]:
+def extract_facts_span(
+    clean: str,
+    doc_type_id: str = "UNKNOWN",
+    max_merge: int = 6,
+) -> tuple[tuple[int, int] | None, dict[str, Any]]:
     """Extract the facts span from normalized brief text.
 
     Backward-compatible with the v0 extract_facts_span signature.
@@ -673,6 +683,7 @@ def extract_facts_span(clean: str, doc_type_id: str = "UNKNOWN") -> tuple[tuple[
     Args:
         clean: Normalized text (output of normalize_text).
         doc_type_id: Document type for policy lookup (default "UNKNOWN").
+        max_merge: Maximum number of contiguous fact-like sections to merge.
 
     Returns:
         ((start, end), metadata) or (None, metadata).
@@ -687,7 +698,7 @@ def extract_facts_span(clean: str, doc_type_id: str = "UNKNOWN") -> tuple[tuple[
 
     # Phase B: Classify sections and merge.
     sections = classify_sections(heading_map, full_text_len)
-    merged_sections, merge_notes = merge_fact_sections(sections)
+    merged_sections, merge_notes = merge_fact_sections(sections, max_merge=max_merge)
 
     result_meta: dict[str, Any] = {
         "method": "rules_v2",

@@ -402,18 +402,42 @@ def looks_like_header_only(text: str, page_count: int | None = None) -> bool:
 # -----------------------------
 # Goal: keep a benchmark-grade slice focused on merits briefs, and avoid treating motions/orders/etc.
 # as extraction failures. This changes dataset *coverage*, not the extraction logic for included docs.
-BAD_SD = [
-    # Only apply to short_description-like text.
+
+# Documents whose short_description starts with these are never briefs.
+_NON_BRIEF_PREFIXES = [
     "order",
-    "memorandum to counsel",
+    "notice",
+    "report and recommendation",
+    "proposed order",
+    "stipulation",
+    "summons",
+    "complaint",
+    "indictment",
+    "judgment",
+    "verdict",
+    "warrant",
+    "subpoena",
+    "transcript",
+    "minute",
+    "docket",
+]
+
+# Exclusion keywords anywhere in the text.
+_EXCLUDE_KEYWORDS = [
     "appendix",
     "errata",
     "mandate",
     "transcript",
+    "memorandum to counsel",
+    "table of authorities",
+    "certificate of service",
+    "certificate of compliance",
+    "corporate disclosure",
+    "notice of appeal",
 ]
-BAD_IF_NOT_BRIEF = ["motion", "memorandum", "points and authorities"]
 
-ROLE_KEYWORDS = ["opening", "response", "appellant", "appellee", "initial", "opposition"]
+# Exclude motion-like filings even if "brief" appears in their name.
+_EXCLUDE_IF_NOT_BRIEF = ["motion", "memorandum", "points and authorities"]
 
 
 def in_scope_brief(item: dict[str, Any], exclude_motion_briefs: bool = False) -> bool:
@@ -431,12 +455,22 @@ def in_scope_brief(item: dict[str, Any], exclude_motion_briefs: bool = False) ->
             return False
         text = desc
 
-    # Exclude amicus/reply (include amici)
-    if re.search(r"\bamic(us|i)\b", text) or "reply" in text:
+    # Exclude documents whose sd clearly indicates a non-brief filing type.
+    sd_stripped = sd.strip()
+    for prefix in _NON_BRIEF_PREFIXES:
+        if sd_stripped.startswith(prefix):
+            return False
+
+    # Exclude amicus (include amici)
+    if re.search(r"\bamic(us|i)\b", text):
+        return False
+
+    # Exclude reply briefs (dataset-definition choice: merits briefs only)
+    if "reply" in text:
         return False
 
     # Exclude non-brief / administrative items
-    if any(b in text for b in BAD_SD):
+    if any(kw in text for kw in _EXCLUDE_KEYWORDS):
         return False
 
     # Exclude claim construction by default (dataset-definition choice)
@@ -444,11 +478,7 @@ def in_scope_brief(item: dict[str, Any], exclude_motion_briefs: bool = False) ->
         return False
 
     # Exclude motion-like things that masquerade as briefs
-    if any(b in text for b in BAD_IF_NOT_BRIEF):
-        return False
-
-    # Require merits-ish roles
-    if not any(k in text for k in ["opening", "response", "appellant", "appellee", "initial", "opposition"]):
+    if any(kw in text for kw in _EXCLUDE_IF_NOT_BRIEF):
         return False
 
     return True
@@ -513,7 +543,7 @@ def main():
     ap.add_argument(
         "--search_fields",
         type=str,
-        default="id,absolute_url,download_url,short_description,document_type,description",
+        default="id,absolute_url,download_url,short_description,document_type,description,court,court_id",
         help="Attempt to request these fields from Search API (if supported).",
     )
     ap.add_argument(
