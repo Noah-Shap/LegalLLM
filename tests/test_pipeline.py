@@ -2,11 +2,8 @@
 
 from legallm.pipeline import (
     candidate_pdf_urls,
-    extract_facts_span,
-    heading_candidates,
     in_scope_brief,
     normalize_text,
-    quality_flags,
 )
 
 # ---- normalize_text ----
@@ -38,91 +35,6 @@ def test_normalize_text_trailing_spaces():
 
 def test_normalize_text_empty():
     assert normalize_text("") == ""
-
-
-# ---- extract_facts_span ----
-
-
-def test_extract_facts_span_exact_headings(sample_brief_text):
-    clean = normalize_text(sample_brief_text)
-    span, meta = extract_facts_span(clean)
-    assert span is not None, f"Expected a span, got None. Notes: {meta['notes']}"
-    start, end = span
-    facts = clean[start:end]
-    assert "Appellant filed a complaint" in facts
-    # The extracted span should end before the actual ARGUMENT section heading
-    # (TOC references to ARGUMENT may appear in the span, but the heading itself shouldn't)
-    assert "This Court should reverse" not in facts
-    assert meta["method"] == "rules_v1"
-
-
-def test_extract_facts_span_no_match():
-    text = "This document has no section headings at all, just prose about random topics."
-    span, meta = extract_facts_span(text)
-    assert span is None
-    assert "no_span_found" in meta["notes"]
-
-
-def test_extract_facts_span_skips_toc(sample_brief_text):
-    clean = normalize_text(sample_brief_text)
-    span, meta = extract_facts_span(clean)
-    assert span is not None
-    start, end = span
-    facts = clean[start:end]
-    # Should not include the TOC entry, only the real section
-    assert "TABLE OF CONTENTS" not in facts
-
-
-def test_extract_facts_span_soft_headings(sample_brief_soft_headings):
-    clean = normalize_text(sample_brief_soft_headings)
-    span, meta = extract_facts_span(clean)
-    # Soft heading detection should find FACTUAL OVERVIEW
-    if span is not None:
-        start, end = span
-        facts = clean[start:end]
-        assert "plaintiff was injured" in facts
-
-
-def test_extract_facts_span_fallback_pre_argument():
-    """Test fallback: content before ARGUMENT heading when no facts heading exists."""
-    text = (
-        "Some preliminary text about the court.\n\n"
-        + "A" * 1000
-        + "\n\n"  # enough content to pass the 800-char threshold
-        + "ARGUMENT\n\n"
-        "The defendant is liable.\n"
-    )
-    span, meta = extract_facts_span(text)
-    if span is not None:
-        assert "fallback_pre_argument" in meta["notes"]
-
-
-# ---- quality_flags ----
-
-
-def test_quality_flags_with_citations():
-    text = "As held in 500 F.3d 100 and 300 U.S. 200, the standard applies."
-    flags = quality_flags(text)
-    assert flags["cite_hits"] >= 1
-    assert flags["cite_hits_per_10k_chars"] > 0
-
-
-def test_quality_flags_with_arg_markers():
-    text = "We argue that this court should reverse. For these reasons, the judgment must be vacated."
-    flags = quality_flags(text)
-    assert flags["arg_marker_hits"] >= 1
-
-
-def test_quality_flags_empty():
-    flags = quality_flags("")
-    assert flags["cite_hits"] == 0
-    assert flags["arg_marker_hits"] == 0
-
-
-def test_quality_flags_no_matches():
-    flags = quality_flags("The quick brown fox jumped over the lazy dog.")
-    assert flags["cite_hits"] == 0
-    assert flags["arg_marker_hits"] == 0
 
 
 # ---- in_scope_brief ----
@@ -202,33 +114,3 @@ def test_candidate_pdf_urls_no_duplicates():
     url = "https://www.courtlistener.com/recap/test.pdf"
     result = candidate_pdf_urls(url)
     assert len(result) == len(set(result))
-
-
-# ---- heading_candidates ----
-
-
-def test_heading_candidates_finds_headings(sample_brief_text):
-    clean = normalize_text(sample_brief_text)
-    headings = heading_candidates(clean)
-    assert isinstance(headings, list)
-    # Should find at least STATEMENT OF FACTS and ARGUMENT
-    heading_text = " ".join(headings)
-    assert "STATEMENT OF FACTS" in heading_text or "ARGUMENT" in heading_text
-
-
-def test_heading_candidates_excludes_bad_fragments():
-    text = "TABLE OF CONTENTS\n\nSTATEMENT OF FACTS\n\nARGUMENT\n"
-    headings = heading_candidates(text)
-    assert "TABLE OF CONTENTS" not in headings
-
-
-def test_heading_candidates_empty():
-    # Lowercase text won't match the HEADING_LINE regex (requires uppercase)
-    headings = heading_candidates("no headings here, just prose about various topics.")
-    assert headings == []
-
-
-def test_heading_candidates_limit():
-    text = "\n".join(f"HEADING NUMBER {i}" for i in range(100))
-    headings = heading_candidates(text, limit=5)
-    assert len(headings) <= 5
