@@ -700,8 +700,11 @@ def extract_facts_span(
     sections = classify_sections(heading_map, full_text_len)
     merged_sections, merge_notes = merge_fact_sections(sections, max_merge=max_merge)
 
+    # Store preprocessed text so callers can slice correctly
+    # (offsets are into preprocessed, not the original clean text).
     result_meta: dict[str, Any] = {
         "method": "rules_v2",
+        "preprocessed_text": preprocessed,
         "notes": list(merge_notes),
         "confidence": "low",
         "sections_merged": len(merged_sections),

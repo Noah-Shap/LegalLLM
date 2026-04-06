@@ -866,7 +866,10 @@ def main():
                 continue
 
             a, b = span
-            facts = clean[a:b]
+            # Offsets are into preprocessed text (PACER headers stripped, roman headings merged),
+            # not the original clean text. Use preprocessed_text for correct slicing.
+            source_text = meta_span.get("preprocessed_text", clean)
+            facts = source_text[a:b]
             flags = quality_flags(facts)
 
             # Citation extraction + masking
