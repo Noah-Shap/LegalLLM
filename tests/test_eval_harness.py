@@ -177,6 +177,97 @@ class TestPopularityDominanceCheck:
 # ============================================================================
 
 
+class TestAnalyzeErrors:
+    def test_basic_analysis(self):
+        from legallm.eval_harness import analyze_errors
+
+        df = pd.DataFrame(
+            {
+                "row_id": ["r1", "r2"],
+                "targets": [["a", "b"], ["c"]],
+                "label_cardinality_bin": ["2-3", "1"],
+            }
+        )
+        results = [
+            RetrievalResult(query_row_id="r1", ranked_ids=["a", "x"], scores=[1.0, 0.5]),
+            RetrievalResult(query_row_id="r2", ranked_ids=["x", "y"], scores=[1.0, 0.5]),
+        ]
+        analysis = analyze_errors(results, df, k=10)
+        assert analysis["total_queries"] == 2
+        assert analysis["zero_hit_queries"] == 1  # r2 has no hits
+        assert analysis["total_hits_in_top_k"] == 1  # only "a" found for r1
+
+    def test_hardest_targets(self):
+        from legallm.eval_harness import analyze_errors
+
+        df = pd.DataFrame(
+            {
+                "row_id": ["r1", "r2", "r3"],
+                "targets": [["hard_case"], ["hard_case"], ["easy_case"]],
+                "label_cardinality_bin": ["1", "1", "1"],
+            }
+        )
+        results = [
+            RetrievalResult(query_row_id="r1", ranked_ids=["x"], scores=[1.0]),
+            RetrievalResult(query_row_id="r2", ranked_ids=["x"], scores=[1.0]),
+            RetrievalResult(query_row_id="r3", ranked_ids=["easy_case"], scores=[1.0]),
+        ]
+        analysis = analyze_errors(results, df, k=10)
+        # hard_case missed 2/2 times
+        assert any(t[0] == "hard_case" for t in analysis["hardest_targets"])
+
+
+class TestCompareModels:
+    def test_comparison(self):
+        from legallm.eval_harness import compare_models
+
+        df = pd.DataFrame(
+            {
+                "row_id": ["r1", "r2"],
+                "targets": [["a"], ["b"]],
+            }
+        )
+        results_a = [
+            RetrievalResult(query_row_id="r1", ranked_ids=["a"], scores=[1.0]),
+            RetrievalResult(query_row_id="r2", ranked_ids=["x"], scores=[1.0]),
+        ]
+        results_b = [
+            RetrievalResult(query_row_id="r1", ranked_ids=["x"], scores=[1.0]),
+            RetrievalResult(query_row_id="r2", ranked_ids=["b"], scores=[1.0]),
+        ]
+        comp = compare_models(results_a, results_b, df, "A", "B", k=10)
+        assert comp["a_wins"] == 1
+        assert comp["b_wins"] == 1
+        assert comp["ties"] == 0
+
+
+class TestCostReport:
+    def test_generates_report(self, tmp_path):
+        import json
+
+        from legallm.eval_harness import generate_cost_report
+
+        manifest = {
+            "build_id": "test123",
+            "timestamp_utc": "2026-01-01T00:00:00",
+            "parameters": {"resolver_budget_per_build": 10000},
+            "results_summary": {
+                "total_hits": 500,
+                "extracted_spans": 450,
+                "failures": 50,
+                "resolver_enabled": True,
+                "resolver_api_calls": 3000,
+                "resolver_cache_entries": 5000,
+                "resolver_cache_hit_rate": 0.4,
+            },
+        }
+        path = tmp_path / "manifest.json"
+        path.write_text(json.dumps(manifest))
+        report = generate_cost_report(str(path))
+        assert "Budget" in report
+        assert "3000" in report
+
+
 class TestFormatReport:
     def test_produces_markdown(self):
         agg = AggregateMetrics(

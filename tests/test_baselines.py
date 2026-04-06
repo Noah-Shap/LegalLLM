@@ -164,3 +164,49 @@ class TestBM25Baseline:
         model = BM25Baseline()
         with pytest.raises(RuntimeError):
             model.predict(pd.DataFrame([{"row_id": "x", "facts_text_masked": "text"}]), k=5)
+
+
+# ============================================================================
+# HybridBaseline (requires sentence-transformers)
+# ============================================================================
+
+
+class TestHybridBaseline:
+    def test_fit_predict(self, train_df, test_df):
+        pytest.importorskip("sentence_transformers")
+        from legallm.baselines import HybridBaseline
+
+        model = HybridBaseline(alpha=0.5, bm25_max_features=100, bm25_n_retrieve=3)
+        model.fit(train_df)
+        results = model.predict(test_df, k=5)
+        assert len(results) == 2
+        for r in results:
+            assert isinstance(r, RetrievalResult)
+
+    def test_alpha_extremes(self, train_df, test_df):
+        pytest.importorskip("sentence_transformers")
+        from legallm.baselines import HybridBaseline
+
+        # alpha=1.0 should behave like pure BM25
+        model = HybridBaseline(alpha=1.0, bm25_max_features=100, bm25_n_retrieve=3)
+        model.fit(train_df)
+        results = model.predict(test_df, k=5)
+        assert len(results) == 2
+
+
+# ============================================================================
+# RerankerBaseline (requires sentence-transformers)
+# ============================================================================
+
+
+class TestRerankerBaseline:
+    def test_fit_predict(self, train_df, test_df):
+        pytest.importorskip("sentence_transformers")
+        from legallm.baselines import RerankerBaseline
+
+        model = RerankerBaseline(n_retrieve=3, bm25_max_features=100)
+        model.fit(train_df)
+        results = model.predict(test_df, k=5)
+        assert len(results) == 2
+        for r in results:
+            assert isinstance(r, RetrievalResult)

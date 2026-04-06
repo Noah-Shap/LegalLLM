@@ -299,3 +299,250 @@ def format_report(
             lines.append("")
 
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Error analysis
+# ---------------------------------------------------------------------------
+
+
+def analyze_errors(
+    results: list[Any],  # list[RetrievalResult]
+    df: pd.DataFrame,
+    k: int = 10,
+) -> dict[str, Any]:
+    """Analyze retrieval errors: what targets are missed and why.
+
+    Returns dict with failure statistics, hardest targets, and position distribution.
+    """
+    row_lookup: dict[str, dict[str, Any]] = {}
+    for _, row in df.iterrows():
+        row_lookup[row["row_id"]] = {
+            "targets": set(row["targets"]),
+            "label_cardinality_bin": row.get("label_cardinality_bin", ""),
+        }
+
+    total_queries = 0
+    zero_hit_queries = 0
+    hit_positions: list[int] = []  # position of each hit (1-indexed)
+    target_miss_counts: dict[str, int] = {}
+    target_total_counts: dict[str, int] = {}
+    failures_by_bin: dict[str, int] = {}
+    queries_by_bin: dict[str, int] = {}
+
+    for result in results:
+        info = row_lookup.get(result.query_row_id)
+        if info is None:
+            continue
+
+        true_ids = info["targets"]
+        cardinality_bin = info["label_cardinality_bin"]
+        total_queries += 1
+        queries_by_bin[cardinality_bin] = queries_by_bin.get(cardinality_bin, 0) + 1
+
+        # Track hits and misses
+        hits_in_k = set()
+        for pos, rid in enumerate(result.ranked_ids[:k]):
+            if rid in true_ids:
+                hits_in_k.add(rid)
+                hit_positions.append(pos + 1)
+
+        if not hits_in_k:
+            zero_hit_queries += 1
+            failures_by_bin[cardinality_bin] = failures_by_bin.get(cardinality_bin, 0) + 1
+
+        # Track per-target miss rates
+        for tid in true_ids:
+            target_total_counts[tid] = target_total_counts.get(tid, 0) + 1
+            if tid not in hits_in_k:
+                target_miss_counts[tid] = target_miss_counts.get(tid, 0) + 1
+
+    # Compute hardest targets (highest miss rate, min 2 appearances)
+    hardest: list[tuple[str, float, int]] = []
+    for tid, total in target_total_counts.items():
+        if total >= 2:
+            misses = target_miss_counts.get(tid, 0)
+            hardest.append((tid, misses / total, total))
+    hardest.sort(key=lambda x: (-x[1], -x[2]))
+
+    # Position distribution
+    pos_dist: dict[str, int] = {"1": 0, "2-3": 0, "4-5": 0, "6-10": 0}
+    for p in hit_positions:
+        if p == 1:
+            pos_dist["1"] += 1
+        elif p <= 3:
+            pos_dist["2-3"] += 1
+        elif p <= 5:
+            pos_dist["4-5"] += 1
+        else:
+            pos_dist["6-10"] += 1
+
+    return {
+        "total_queries": total_queries,
+        "zero_hit_queries": zero_hit_queries,
+        "zero_hit_rate": zero_hit_queries / max(total_queries, 1),
+        "total_hits_in_top_k": len(hit_positions),
+        "hit_position_distribution": pos_dist,
+        "hardest_targets": hardest[:20],
+        "failures_by_cardinality": failures_by_bin,
+        "queries_by_cardinality": queries_by_bin,
+    }
+
+
+def compare_models(
+    results_a: list[Any],
+    results_b: list[Any],
+    df: pd.DataFrame,
+    name_a: str,
+    name_b: str,
+    k: int = 10,
+) -> dict[str, Any]:
+    """Head-to-head comparison of two models on the same test set."""
+    row_lookup: dict[str, set[str]] = {}
+    for _, row in df.iterrows():
+        row_lookup[row["row_id"]] = set(row["targets"])
+
+    # Build per-query recall maps
+    recall_a: dict[str, float] = {}
+    for r in results_a:
+        true_ids = row_lookup.get(r.query_row_id, set())
+        recall_a[r.query_row_id] = recall_at_k(r.ranked_ids, true_ids, k) if true_ids else 0.0
+
+    recall_b: dict[str, float] = {}
+    for r in results_b:
+        true_ids = row_lookup.get(r.query_row_id, set())
+        recall_b[r.query_row_id] = recall_at_k(r.ranked_ids, true_ids, k) if true_ids else 0.0
+
+    a_wins = 0
+    b_wins = 0
+    ties = 0
+    for qid in recall_a:
+        ra = recall_a.get(qid, 0)
+        rb = recall_b.get(qid, 0)
+        if ra > rb + 1e-9:
+            a_wins += 1
+        elif rb > ra + 1e-9:
+            b_wins += 1
+        else:
+            ties += 1
+
+    total = a_wins + b_wins + ties
+    return {
+        "name_a": name_a,
+        "name_b": name_b,
+        "a_wins": a_wins,
+        "b_wins": b_wins,
+        "ties": ties,
+        "total": total,
+        "a_win_rate": a_wins / max(total, 1),
+        "b_win_rate": b_wins / max(total, 1),
+    }
+
+
+def format_error_report(analysis: dict[str, Any], model_name: str) -> str:
+    """Format error analysis as markdown."""
+    lines = [f"## Error Analysis: {model_name}", ""]
+    lines.append(f"- Total queries: {analysis['total_queries']}")
+    lines.append(f"- Zero-hit queries: {analysis['zero_hit_queries']} ({analysis['zero_hit_rate']:.1%})")
+    lines.append(f"- Total hits in top-K: {analysis['total_hits_in_top_k']}")
+    lines.append("")
+
+    lines.append("### Hit Position Distribution")
+    lines.append("| Position | Count |")
+    lines.append("|----------|-------|")
+    for pos, count in analysis["hit_position_distribution"].items():
+        lines.append(f"| {pos} | {count} |")
+    lines.append("")
+
+    lines.append("### Zero-Hit Rate by Cardinality")
+    lines.append("| Cardinality | Queries | Zero-Hit | Rate |")
+    lines.append("|-------------|---------|----------|------|")
+    for bin_val in sorted(analysis["queries_by_cardinality"].keys()):
+        q = analysis["queries_by_cardinality"][bin_val]
+        f = analysis["failures_by_cardinality"].get(bin_val, 0)
+        lines.append(f"| {bin_val} | {q} | {f} | {f / max(q, 1):.1%} |")
+    lines.append("")
+
+    if analysis["hardest_targets"]:
+        lines.append("### Hardest Targets (top 10)")
+        lines.append("| Case ID | Miss Rate | Appearances |")
+        lines.append("|---------|-----------|-------------|")
+        for tid, miss_rate, total in analysis["hardest_targets"][:10]:
+            lines.append(f"| {tid} | {miss_rate:.1%} | {total} |")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def format_comparison_report(comparison: dict[str, Any]) -> str:
+    """Format model comparison as markdown."""
+    lines = [f"## Model Comparison: {comparison['name_a']} vs {comparison['name_b']}", ""]
+    lines.append("| Metric | Value |")
+    lines.append("|--------|-------|")
+    lines.append(f"| {comparison['name_a']} wins | {comparison['a_wins']} ({comparison['a_win_rate']:.1%}) |")
+    lines.append(f"| {comparison['name_b']} wins | {comparison['b_wins']} ({comparison['b_win_rate']:.1%}) |")
+    lines.append(f"| Ties | {comparison['ties']} |")
+    lines.append(f"| Total queries | {comparison['total']} |")
+    lines.append("")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Cost reporting
+# ---------------------------------------------------------------------------
+
+
+def generate_cost_report(manifest_path: str, *, cost_per_api_call: float = 0.0) -> str:
+    """Generate a budget/cost report from a build manifest.
+
+    Since CourtListener API is free, 'cost' here means API budget utilization
+    rather than dollar cost. OCR cost is estimated if OCR was used.
+    """
+    import json
+    from pathlib import Path
+
+    data = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    results = data.get("results_summary", {})
+    params = data.get("parameters", {})
+
+    lines = ["## Budget & Cost Report", ""]
+    lines.append(f"- Build ID: {data.get('build_id', 'unknown')}")
+    lines.append(f"- Timestamp: {data.get('timestamp_utc', 'unknown')}")
+    lines.append("")
+
+    lines.append("### Pipeline Summary")
+    lines.append("| Metric | Value |")
+    lines.append("|--------|-------|")
+    lines.append(f"| Total search hits | {results.get('total_hits', 'N/A')} |")
+    lines.append(f"| Extracted spans | {results.get('extracted_spans', 'N/A')} |")
+    lines.append(f"| Failures | {results.get('failures', 'N/A')} |")
+    lines.append("")
+
+    if results.get("resolver_enabled"):
+        api_calls = results.get("resolver_api_calls", 0)
+        cache_entries = results.get("resolver_cache_entries", 0)
+        hit_rate = results.get("resolver_cache_hit_rate", 0)
+        budget = params.get("resolver_budget_per_build", 10_000) if isinstance(params, dict) else 10_000
+
+        lines.append("### Resolver Budget")
+        lines.append("| Metric | Value |")
+        lines.append("|--------|-------|")
+        lines.append(f"| API calls made | {api_calls} |")
+        lines.append(f"| Budget ceiling | {budget} |")
+        lines.append(f"| Budget utilization | {api_calls / max(budget, 1):.1%} |")
+        lines.append(f"| Cache entries | {cache_entries} |")
+        lines.append(f"| Cache hit rate | {hit_rate:.1%} |")
+        saved = int(cache_entries * hit_rate) if cache_entries else 0
+        lines.append(f"| Estimated calls saved by cache | {saved} |")
+        lines.append("")
+
+    lines.append("### Exclusion Rates")
+    total = results.get("total_hits", 0)
+    extracted = results.get("extracted_spans", 0)
+    failures = results.get("failures", 0)
+    if total > 0:
+        lines.append(f"- Extraction success: {extracted}/{total} ({extracted / total:.1%})")
+        lines.append(f"- Failure rate: {failures}/{total} ({failures / total:.1%})")
+    lines.append("")
+
+    return "\n".join(lines)

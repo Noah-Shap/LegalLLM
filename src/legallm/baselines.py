@@ -208,3 +208,157 @@ class DenseRetrievalBaseline:
             results.append(RetrievalResult(query_row_id=row_id, ranked_ids=ranked_ids, scores=scores))
 
         return results
+
+
+# ---------------------------------------------------------------------------
+# Hybrid: BM25 + Dense score fusion
+# ---------------------------------------------------------------------------
+
+
+def _normalize_scores(scores: np.ndarray) -> np.ndarray:
+    """Min-max normalize scores to [0, 1]."""
+    mn, mx = scores.min(), scores.max()
+    if mx - mn < 1e-9:
+        return np.zeros_like(scores)
+    return (scores - mn) / (mx - mn)
+
+
+class HybridBaseline:
+    """Weighted fusion of BM25 (sparse) and Dense (embedding) similarity.
+
+    Combines normalized BM25 and Dense similarity scores:
+        fused = alpha * bm25_norm + (1 - alpha) * dense_norm
+
+    Requires: pip install legallm[dense]
+    """
+
+    def __init__(
+        self,
+        *,
+        alpha: float = 0.5,
+        bm25_max_features: int = 10_000,
+        bm25_n_retrieve: int = 100,
+        dense_model_name: str = "all-MiniLM-L6-v2",
+        n_retrieve: int = 100,
+    ) -> None:
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError:
+            raise ImportError(
+                "sentence-transformers is required for hybrid retrieval. Install with: pip install legallm[dense]"
+            ) from None
+
+        self.alpha = alpha
+        self.n_retrieve = n_retrieve
+        self._bm25 = BM25Baseline(max_features=bm25_max_features, n_retrieve=n_retrieve)
+        self._dense_model = SentenceTransformer(dense_model_name)
+        self._train_embeddings: np.ndarray | None = None
+        self._train_targets: list[list[str]] = []
+
+    def fit(self, train_df: pd.DataFrame) -> None:
+        self._bm25.fit(train_df)
+        texts = train_df["facts_text_masked"].fillna("").tolist()
+        self._train_embeddings = self._dense_model.encode(texts, show_progress_bar=False, convert_to_numpy=True)
+        self._train_targets = train_df["targets"].tolist()
+
+    def predict(self, df: pd.DataFrame, k: int = 100) -> list[RetrievalResult]:
+        if self._bm25._train_matrix is None or self._train_embeddings is None:
+            raise RuntimeError("Call fit() before predict()")
+
+        texts = df["facts_text_masked"].fillna("").tolist()
+        query_embeddings = self._dense_model.encode(texts, show_progress_bar=False, convert_to_numpy=True)
+
+        results = []
+        for i, (_, row) in enumerate(df.iterrows()):
+            # BM25 similarities
+            query_vec = self._bm25._vectorizer.transform([row.get("facts_text_masked", "")])
+            bm25_sims = cosine_similarity(query_vec, self._bm25._train_matrix).flatten()
+
+            # Dense similarities
+            dense_sims = cosine_similarity(query_embeddings[i : i + 1], self._train_embeddings).flatten()
+
+            # Normalize and fuse
+            fused = self.alpha * _normalize_scores(bm25_sims) + (1 - self.alpha) * _normalize_scores(dense_sims)
+
+            ranked_ids, scores = aggregate_case_ids(fused, self._train_targets, k, self.n_retrieve)
+            results.append(RetrievalResult(query_row_id=row["row_id"], ranked_ids=ranked_ids, scores=scores))
+
+        return results
+
+
+# ---------------------------------------------------------------------------
+# Reranker: BM25 retrieve → Dense rerank
+# ---------------------------------------------------------------------------
+
+
+class RerankerBaseline:
+    """Two-stage: BM25 retrieves candidates, Dense reranks them.
+
+    Stage 1: BM25 retrieves top-N training rows by TF-IDF similarity.
+    Stage 2: Dense model reranks those N rows by embedding cosine similarity.
+    Case IDs are aggregated from the reranked order.
+
+    Requires: pip install legallm[dense]
+    """
+
+    def __init__(
+        self,
+        *,
+        n_retrieve: int = 100,
+        bm25_max_features: int = 10_000,
+        dense_model_name: str = "all-MiniLM-L6-v2",
+    ) -> None:
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError:
+            raise ImportError(
+                "sentence-transformers is required for reranker. Install with: pip install legallm[dense]"
+            ) from None
+
+        self.n_retrieve = n_retrieve
+        self._bm25 = BM25Baseline(max_features=bm25_max_features, n_retrieve=n_retrieve)
+        self._dense_model = SentenceTransformer(dense_model_name)
+        self._train_embeddings: np.ndarray | None = None
+        self._train_targets: list[list[str]] = []
+
+    def fit(self, train_df: pd.DataFrame) -> None:
+        self._bm25.fit(train_df)
+        texts = train_df["facts_text_masked"].fillna("").tolist()
+        self._train_embeddings = self._dense_model.encode(texts, show_progress_bar=False, convert_to_numpy=True)
+        self._train_targets = train_df["targets"].tolist()
+
+    def predict(self, df: pd.DataFrame, k: int = 100) -> list[RetrievalResult]:
+        if self._bm25._train_matrix is None or self._train_embeddings is None:
+            raise RuntimeError("Call fit() before predict()")
+
+        texts = df["facts_text_masked"].fillna("").tolist()
+        query_embeddings = self._dense_model.encode(texts, show_progress_bar=False, convert_to_numpy=True)
+
+        results = []
+        for i, (_, row) in enumerate(df.iterrows()):
+            # Stage 1: BM25 retrieve top-N
+            query_vec = self._bm25._vectorizer.transform([row.get("facts_text_masked", "")])
+            bm25_sims = cosine_similarity(query_vec, self._bm25._train_matrix).flatten()
+            top_n_indices = np.argsort(bm25_sims)[::-1][: self.n_retrieve]
+
+            # Stage 2: Dense rerank the top-N
+            candidate_embeddings = self._train_embeddings[top_n_indices]
+            dense_sims = cosine_similarity(query_embeddings[i : i + 1], candidate_embeddings).flatten()
+
+            # Aggregate case IDs from reranked candidates
+            reranked_order = np.argsort(dense_sims)[::-1]
+            case_scores: dict[str, float] = {}
+            for rank, local_idx in enumerate(reranked_order):
+                global_idx = top_n_indices[local_idx]
+                score = float(dense_sims[local_idx])
+                if score <= 0:
+                    continue
+                for case_id in self._train_targets[global_idx]:
+                    case_scores[case_id] = case_scores.get(case_id, 0.0) + score
+
+            sorted_cases = sorted(case_scores.items(), key=lambda x: x[1], reverse=True)[:k]
+            ranked_ids = [c[0] for c in sorted_cases]
+            scores = [c[1] for c in sorted_cases]
+            results.append(RetrievalResult(query_row_id=row["row_id"], ranked_ids=ranked_ids, scores=scores))
+
+        return results

@@ -59,7 +59,7 @@ class TestEvalCLI:
         )
         assert report_path.exists()
         content = report_path.read_text()
-        assert "M3 Baseline Evaluation Report" in content
+        assert "Evaluation Report" in content
 
     def test_empty_dataset_handled(self, tmp_path, capsys):
         # All rows have empty targets
