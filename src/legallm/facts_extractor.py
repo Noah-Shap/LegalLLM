@@ -370,8 +370,11 @@ def build_heading_map(text: str, doc_type_id: str = "UNKNOWN") -> tuple[list[Hea
         )
 
     # Pass 2: Find soft heading matches (all-caps lines not already matched).
+    # IMPORTANT: match against original text (not upper) so only lines that are
+    # actually all-caps in the document are considered as headings. Matching
+    # against upper would treat every line as a heading candidate.
     exact_positions = {(e.start, e.end) for e in entries}
-    for m in HEADING_LINE.finditer(upper):
+    for m in HEADING_LINE.finditer(text):
         title = m.group(1).strip()
         if any(b in title for b in BAD_HEADING_FRAGMENTS):
             continue
