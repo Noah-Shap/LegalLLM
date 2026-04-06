@@ -251,6 +251,58 @@ class TestEvaluateResults:
         cluster_id, conf, reason = _evaluate_results("500 U.S. 100", results, 0.90)
         assert cluster_id is None
 
+    def test_fuzzy_volume_page_match(self):
+        """Volume + page match with different reporter should resolve at 0.85."""
+        results2 = [
+            {
+                "cluster_id": 55555,
+                "citation": ["500 S.Ct. 100", "500 L.Ed. 100"],
+            }
+        ]
+        cluster_id, conf, reason = _evaluate_results("500 U.S. 100", results2, 0.85)
+        assert cluster_id == "55555"
+        assert conf == 0.85
+        assert reason is None
+
+    def test_fuzzy_match_below_threshold_rejected(self):
+        """Fuzzy match at 0.85 should be rejected when min_confidence is 0.90."""
+        results = [
+            {
+                "cluster_id": 55555,
+                "citation": ["500 S.Ct. 100"],
+            }
+        ]
+        cluster_id, conf, reason = _evaluate_results("500 U.S. 100", results, 0.90)
+        assert cluster_id is None
+        assert reason == "low_confidence_or_ambiguous"
+
+    def test_multiple_results_one_exact_match(self):
+        """When multiple results but only one has a matching citation, accept it."""
+        results = [
+            {
+                "cluster_id": 11111,
+                "citation": ["500 U.S. 100", "111 S.Ct. 1000"],
+            },
+            {
+                "cluster_id": 22222,
+                "citation": ["5 Cl.Ct. 349", "unrelated cite"],
+            },
+        ]
+        cluster_id, conf, reason = _evaluate_results("500 U.S. 100", results, 0.90)
+        assert cluster_id == "11111"
+        assert conf == 1.0
+        assert reason is None
+
+    def test_multiple_results_none_match(self):
+        """Multiple results but none have matching citations."""
+        results = [
+            {"cluster_id": 11111, "citation": ["999 F.3d 1"]},
+            {"cluster_id": 22222, "citation": ["888 F.2d 2"]},
+        ]
+        cluster_id, conf, reason = _evaluate_results("500 U.S. 100", results, 0.90)
+        assert cluster_id is None
+        assert reason == "low_confidence_or_ambiguous"
+
 
 # ============================================================================
 # resolve_citations (integration with mocked API)

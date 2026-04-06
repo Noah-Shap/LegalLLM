@@ -186,6 +186,57 @@ def _normalize_cl_citation(cite_str: str) -> str:
     return s
 
 
+def _parse_citation_components(cite_str: str) -> tuple[str, str, str] | None:
+    """Parse a citation string into (volume, reporter, page) components.
+
+    Returns None if the string doesn't look like a standard citation.
+    """
+    parts = cite_str.strip().split()
+    if len(parts) < 3:
+        return None
+    volume = parts[0]
+    page = parts[-1]
+    reporter = " ".join(parts[1:-1])
+    if not volume.isdigit() or not page.isdigit():
+        return None
+    return volume, reporter, page
+
+
+def _fuzzy_match_result(
+    normalized: str,
+    result: dict[str, Any],
+) -> tuple[str | None, float]:
+    """Check if a result matches the queried citation (exact or fuzzy).
+
+    Returns (cluster_id, confidence). confidence=0.0 means no match.
+    """
+    cluster_id = result.get("cluster_id")
+    if cluster_id is None:
+        return None, 0.0
+
+    cite_list = result.get("citation", [])
+    if not isinstance(cite_list, list):
+        return None, 0.0
+
+    norm_clean = _normalize_cl_citation(normalized)
+    query_parts = _parse_citation_components(norm_clean)
+
+    # Pass 1: Exact string match (confidence 1.0)
+    for c in cite_list:
+        if _normalize_cl_citation(c) == norm_clean:
+            return str(cluster_id), 1.0
+
+    # Pass 2: Volume + page match across different reporters (confidence 0.85)
+    if query_parts:
+        q_vol, _q_rep, q_page = query_parts
+        for c in cite_list:
+            c_parts = _parse_citation_components(c)
+            if c_parts and c_parts[0] == q_vol and c_parts[2] == q_page:
+                return str(cluster_id), 0.85
+
+    return None, 0.0
+
+
 def _evaluate_results(
     normalized: str,
     results: list[dict[str, Any]],
@@ -198,42 +249,25 @@ def _evaluate_results(
     if not results:
         return None, None, "no_match"
 
-    # Find results where the queried citation appears in the result's citation list
-    exact_matches: list[dict[str, Any]] = []
+    # Score every result using exact + fuzzy matching
+    matches: list[tuple[str, float, dict[str, Any]]] = []
     for result in results:
-        cite_list = result.get("citation", [])
-        if not isinstance(cite_list, list):
-            continue
-        for c in cite_list:
-            if _normalize_cl_citation(c) == _normalize_cl_citation(normalized):
-                exact_matches.append(result)
-                break
+        cid, conf = _fuzzy_match_result(normalized, result)
+        if cid is not None and conf >= min_confidence:
+            matches.append((cid, conf, result))
 
-    if len(exact_matches) == 1:
-        cluster_id = exact_matches[0].get("cluster_id")
-        if cluster_id is not None:
-            return str(cluster_id), 1.0, None
+    if len(matches) == 1:
+        return matches[0][0], matches[0][1], None
 
-    if len(exact_matches) > 1:
+    if len(matches) > 1:
+        # Multiple matches — check if they all point to the same cluster
+        unique_ids = {m[0] for m in matches}
+        if len(unique_ids) == 1:
+            best = max(matches, key=lambda m: m[1])
+            return best[0], best[1], None
         return None, None, "low_confidence_or_ambiguous"
 
-    # No exact match in citation lists — try fuzzy match on first result only
-    if len(results) == 1:
-        result = results[0]
-        cluster_id = result.get("cluster_id")
-        # Check volume/page overlap as a weak signal
-        cite_list = result.get("citation", [])
-        parts = normalized.split()
-        if len(parts) >= 3:
-            volume, page = parts[0], parts[-1]
-            for c in cite_list:
-                c_parts = c.split()
-                if len(c_parts) >= 3 and c_parts[0] == volume and c_parts[-1] == page:
-                    # Volume and page match — moderate confidence
-                    if min_confidence <= 0.80 and cluster_id is not None:
-                        return str(cluster_id), 0.80, None
-        return None, None, "low_confidence_or_ambiguous"
-
+    # No match above threshold
     return None, None, "low_confidence_or_ambiguous"
 
 

@@ -37,6 +37,9 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--seed", type=int, default=42, help="Random seed for splits")
     ap.add_argument("--report-out", type=str, default=None, help="Path to write markdown report (default: stdout)")
     ap.add_argument("--skip-leakage-check", action="store_true", help="Skip the citation leakage gate")
+    # BM25 tuning
+    ap.add_argument("--bm25-max-features", type=int, default=10_000, help="TF-IDF vocabulary size")
+    ap.add_argument("--bm25-n-retrieve", type=int, default=100, help="Training rows to retrieve per query")
     args = ap.parse_args(argv)
 
     # Load and prepare dataset
@@ -80,7 +83,7 @@ def main(argv: list[str] | None = None) -> None:
         if baseline_name == "popularity":
             model = PopularityBaseline()
         elif baseline_name == "bm25":
-            model = BM25Baseline()
+            model = BM25Baseline(max_features=args.bm25_max_features, n_retrieve=args.bm25_n_retrieve)
         elif baseline_name == "dense":
             try:
                 from legallm.baselines import DenseRetrievalBaseline
