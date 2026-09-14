@@ -27,7 +27,10 @@ converted into a deployed LLM extraction app with a disciplined eval loop (Phase
   (rules_v2 span extractor), `ocr_decision.py` (single source of truth for OCR thresholds),
   `ocr_backend.py`, `citation_extractor.py`, `citation_resolver.py`, `build_manifest.py`,
   `dataset.py`, `baselines.py`, `eval_harness.py`, `eval_cli.py`, `cli.py`.
-- `tests/` — pytest, 235 tests, all offline.
+  Phase-1 layer: `schema.py` (C1 `FactsExtraction`, pydantic), `baseline_adapter.py` (C3 rules_v2 →
+  schema; `preprocess_text` defines the offset contract), `validators.py` (C4 deterministic checks),
+  `single_doc.py` (one PDF/text → extraction + validation; extractor registry for LLM methods).
+- `tests/` — pytest, all offline (mock `requests`; PDFs built with PyMuPDF in tmp_path).
 - `data/` — gitignored; see `data/README.md`. Primary build: `data/processed/facts_dataset_2k.parquet`.
 - `reports/` — eval reports and the 100-doc gold audit set (unrated).
 - Spec docs at repo root: `approved_spec_package_v0_2.md`, `facts_extraction_spec_v1.md`,
@@ -37,11 +40,12 @@ converted into a deployed LLM extraction app with a disciplined eval loop (Phase
 
 ```bash
 pip install -e ".[dev]"                      # python >= 3.12; use .venv (3.13)
-pytest tests/ -v                             # 235 tests, ~40 s
+pytest tests/ -v                             # ~40 s (hybrid tests load a local sentence-transformers model)
 ruff check src/ tests/ && ruff format --check src/ tests/
-mypy src/legallm/                            # 3 known errors in baselines.py
+mypy src/legallm/                            # must be clean (CI gate)
 legallm --query "..." --max_docs N [--no_scope_filter] [--resolve_citations] [--enable_ocr]   # LIVE API — see R5
 legallm-eval --parquet data/processed/facts_dataset_2k.parquet --baselines popularity bm25
+legallm-extract data/raw/pdfs/<id>.pdf [--json --out out.json] [--method rules_v2]   # single doc, offline
 ```
 
 ## Environment

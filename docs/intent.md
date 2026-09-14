@@ -1,6 +1,6 @@
 # INTENT — SkillBlock-1 · Legal Facts Extraction as a Deployed LLM App with Evals
 
-> **Status:** v0.2 · 2026-09-14 · owner Noah Shap · supersedes v0.1 after reading `STATE.md` (commit 9ce39a7)
+> **Status:** v0.2.2 · 2026-09-14 · owner Noah Shap · supersedes v0.1 after reading `STATE.md` (commit 9ce39a7); D1–D13 resolved (see §11 log)
 > **Lives at:** `docs/intent.md` in the project repo. Update the version line on every material change; append to §11 Decisions log rather than rewriting history.
 > **Read with:** `STATE.md` (what exists) → `GAP.md` (STATE vs this file) → build plan.
 
@@ -169,6 +169,8 @@ Decisions log (append-only):
 - 2026-09-14 · v0.1 created; scope = extend existing pipeline (chosen over sports/fintech doc-extraction alternative).
 - 2026-09-14 · v0.2.1: cut order fixed (downstream protected, UI cut first); DoD adds judge κ + headline finding.
 - 2026-09-14 · v0.2: repo made public; §3 rewritten from `STATE.md`; gold set re-based on existing audit set; downstream (resolution / Recall@10) metric added; D9–D13 opened.
+- 2026-09-14 · v0.2.2 (session 2, block 1): Noah resolved **D1 = Claude Sonnet 5** (`claude-sonnet-5`, extractor tier), **D2 = Claude Opus 5** (`claude-opus-5`, judge), **D3–D13 = defaults confirmed** (FastAPI+Streamlit · HF Spaces · JSONL/Streamlit labeler · 120-doc gold · keep URL, retitle README · IoU −2 / fidelity −1 gate · gold text split out · branch → `main` · legacy scripts deleted · canonical build `46864ffb7283` · owner `Noah-Shap`). Open: whether Opus 5 is also the C2 *escalation* tier (D1 named one model); default assumption = yes.
+- 2026-09-14 · Build order items 1–3 done (Claude Code): H1–H8 hygiene; C1 `schema.py`, C3 `baseline_adapter.py`, C4 `validators.py` + tests; single-doc path `single_doc.py` / `legallm-extract`.
 
 ## 12 · Provenance
 
