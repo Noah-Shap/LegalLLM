@@ -13,15 +13,20 @@ build/
 venv/
 env/
 
-# Data (generated locally, not tracked)
-data/raw/
-data/processed/*.parquet
-data/processed/*.jsonl
-data/processed/*.log
+# Data & pipeline outputs (generated locally, never committed)
+data/**
+!data/README.md
+raw/
+pdfs/
+*.pdf
+*.parquet
+*.jsonl
+!tests/**/*.jsonl
+*.log
 logs/*.log
 
-# Large files
-*.pdf
+# Archives
+*.zip
 
 # IDE
 .vscode/
@@ -37,12 +42,14 @@ desktop.ini
 
 # Environment / secrets
 .env
+.env.*
+!.env.example
 
-# mypy
+# Tool caches
 .mypy_cache/
-
-# pytest
 .pytest_cache/
+.ruff_cache/
+.cache/
 
 # coverage
 htmlcov/

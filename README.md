@@ -1,10 +1,14 @@
 # LegalLLM
 
-[![CI](https://github.com/<your-username>/LegalLLM/actions/workflows/ci.yml/badge.svg)](https://github.com/<your-username>/LegalLLM/actions/workflows/ci.yml)
+[![CI](https://github.com/Noah-Shap/LegalLLM/actions/workflows/ci.yml/badge.svg)](https://github.com/Noah-Shap/LegalLLM/actions/workflows/ci.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Benchmark-grade legal facts dataset pipeline for citation prediction research.
+
+**Status (2026-09-14):** rule-based v0 (CourtListener/RECAP → PDF → text/OCR → rule-based facts span → citation targets → retrieval baselines) → **LLM extraction app + eval loop in progress**.
+
+Start here: [`STATE.md`](STATE.md) (measured inventory of the current repo), [`GAP.md`](GAP.md) (target vs. existing components), [`docs/intent.md`](docs/intent.md) (target state for the LLM app).
 
 Extracts "Statement of Facts" sections from U.S. court merits briefs sourced via [CourtListener](https://www.courtlistener.com/)/RECAP, producing structured datasets for legal citation prediction experiments.
 
@@ -79,7 +83,7 @@ See [data/README.md](data/README.md) for full schema details.
 
 ```bash
 # Clone and install
-git clone https://github.com/<your-username>/LegalLLM.git
+git clone https://github.com/Noah-Shap/LegalLLM.git
 cd LegalLLM
 pip install -e ".[dev]"
 pre-commit install
