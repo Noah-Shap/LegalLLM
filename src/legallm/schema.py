@@ -81,7 +81,7 @@ class FactsExtraction(BaseModel):
         return self.facts_span is not None and bool(self.facts_span.text.strip())
 
     def to_json(self, indent: int | None = 2) -> str:
-        return self.model_dump_json(indent=indent)
+        return str(self.model_dump_json(indent=indent))
 
 
 # Fields an LLM extractor is expected to fill; the caller sets the rest.
