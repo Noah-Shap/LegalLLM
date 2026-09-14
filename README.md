@@ -8,6 +8,8 @@ Benchmark-grade legal facts dataset pipeline for citation prediction research.
 
 **Status (2026-09-14):** rule-based v0 (CourtListener/RECAP → PDF → text/OCR → rule-based facts span → citation targets → retrieval baselines) → **LLM extraction app + eval loop in progress**.
 
+**Canonical build (D12):** Phase 1 uses `data/processed/facts_dataset_2k.parquet`, build `46864ffb7283` (1,599 spans). The April 2026 retrieval reports in `reports/m4_*` were computed on an earlier, overwritten 2k build (`38a720b3324a`, 1,819 spans); numbers there are not directly comparable to the on-disk parquet.
+
 Start here: [`STATE.md`](STATE.md) (measured inventory of the current repo), [`GAP.md`](GAP.md) (target vs. existing components), [`docs/intent.md`](docs/intent.md) (target state for the LLM app).
 
 Extracts "Statement of Facts" sections from U.S. court merits briefs sourced via [CourtListener](https://www.courtlistener.com/)/RECAP, producing structured datasets for legal citation prediction experiments.

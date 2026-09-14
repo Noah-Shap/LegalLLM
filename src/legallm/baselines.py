@@ -220,7 +220,7 @@ def _normalize_scores(scores: np.ndarray) -> np.ndarray:
     mn, mx = scores.min(), scores.max()
     if mx - mn < 1e-9:
         return np.zeros_like(scores)
-    return (scores - mn) / (mx - mn)
+    return np.asarray((scores - mn) / (mx - mn))
 
 
 class HybridBaseline:
@@ -262,7 +262,7 @@ class HybridBaseline:
         self._train_targets = train_df["targets"].tolist()
 
     def predict(self, df: pd.DataFrame, k: int = 100) -> list[RetrievalResult]:
-        if self._bm25._train_matrix is None or self._train_embeddings is None:
+        if self._bm25._vectorizer is None or self._bm25._train_matrix is None or self._train_embeddings is None:
             raise RuntimeError("Call fit() before predict()")
 
         texts = df["facts_text_masked"].fillna("").tolist()
@@ -328,7 +328,7 @@ class RerankerBaseline:
         self._train_targets = train_df["targets"].tolist()
 
     def predict(self, df: pd.DataFrame, k: int = 100) -> list[RetrievalResult]:
-        if self._bm25._train_matrix is None or self._train_embeddings is None:
+        if self._bm25._vectorizer is None or self._bm25._train_matrix is None or self._train_embeddings is None:
             raise RuntimeError("Call fit() before predict()")
 
         texts = df["facts_text_masked"].fillna("").tolist()
