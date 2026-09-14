@@ -138,8 +138,9 @@ The district court denied X leave to amend. X appealed.
 **Rating:** `___________` (correct / partially_correct / incorrect)
 
 **Notes:** 
-
----
+- STATUTORY ADDENDUM STATEMENT inclusded in the facts section. Not sure whether or not we should include this as it is not a fact of the case even though it is a factual statement. 
+- 
+--- 
 
 ### Document 2 (ID: 442367351)
 
