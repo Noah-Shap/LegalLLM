@@ -6,7 +6,6 @@ import pytest
 from pydantic import ValidationError
 
 from legallm.schema import (
-    LLM_OUTPUT_FIELDS,
     SCHEMA_VERSION,
     FactsExtraction,
     FactsSpan,
@@ -74,15 +73,22 @@ class TestFactsExtraction:
 
 
 class TestLlmOutputSchema:
-    def test_only_model_filled_fields(self):
+    def test_wire_schema_excludes_producer_fields(self):
         schema = llm_output_json_schema()
-        assert set(schema["properties"]) == set(LLM_OUTPUT_FIELDS)
-        assert "extractor_version" not in schema["properties"]
-        assert "schema_version" not in schema["properties"]
+        for k in ("extractor_version", "schema_version", "doc_type_id", "provenance", "facts_span"):
+            assert k not in schema["properties"]
         assert schema["additionalProperties"] is False
-        assert set(schema["required"]) == set(LLM_OUTPUT_FIELDS)
+        assert set(schema["required"]) == set(schema["properties"])
 
-    def test_defs_present_for_nested_models(self):
+    def test_refs_inlined(self):
         schema = llm_output_json_schema()
-        assert "FactsSpan" in schema["$defs"]
-        assert "KeyEvent" in schema["$defs"]
+        assert "$defs" not in schema
+        assert "$ref" not in json.dumps(schema)
+        assert schema["properties"]["key_events"]["items"]["properties"]["text"]["type"] == "string"
+
+    def test_provenance_default_and_roundtrip(self):
+        ex = FactsExtraction(
+            extractor_version="llm-v1", confidence="low", provenance={"model_id": "m", "cost_usd": 0.01}
+        )
+        assert FactsExtraction.model_validate(json.loads(ex.to_json())).provenance["cost_usd"] == 0.01
+        assert FactsExtraction(extractor_version="x", confidence="low").provenance == {}

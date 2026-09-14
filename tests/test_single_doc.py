@@ -146,3 +146,16 @@ class TestCli:
     def test_format_summary_no_span(self):
         r = extract_from_text("Nothing here.")
         assert "facts_span:     none" in format_summary(r)
+
+    def test_llm_error_exit_2(self, tmp_path, sample_brief_text, capsys, monkeypatch):
+        import legallm.llm_extractor as mod
+
+        class Boom:
+            def __call__(self, doc_text, doc_type_id="UNKNOWN"):
+                raise mod.LlmExtractionError("API error 400: no credits")
+
+        monkeypatch.setattr(mod, "_default", Boom())
+        p = tmp_path / "brief.txt"
+        p.write_text(sample_brief_text, encoding="utf-8")
+        assert main([str(p), "--method", "llm-v1"]) == 2
+        assert "no credits" in capsys.readouterr().err

@@ -12,7 +12,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"
 
 Confidence = Literal["high", "medium", "low"]
 
@@ -71,6 +71,10 @@ class FactsExtraction(BaseModel):
     )
     notes: list[str] = Field(default_factory=list, description="Diagnostic notes / quality flags from the extractor.")
     doc_type_id: str = Field(default="UNKNOWN", description="Document type id used for extraction policy.")
+    provenance: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Producer metadata (model_id, prompt_sha, tokens, cost_usd, latency_s, ...). Never model-filled.",
+    )
 
     @property
     def facts_text(self) -> str:
@@ -84,32 +88,52 @@ class FactsExtraction(BaseModel):
         return str(self.model_dump_json(indent=indent))
 
 
-# Fields an LLM extractor is expected to fill; the caller sets the rest.
-LLM_OUTPUT_FIELDS: tuple[str, ...] = (
-    "facts_span",
-    "parties",
-    "procedural_posture",
-    "key_events",
-    "record_citations",
-    "case_citations",
-    "confidence",
-    "notes",
-)
+class LlmFactsOutput(BaseModel):
+    """Wire schema the LLM extractor asks the model to fill (C2).
+
+    Offsets are never requested from the model. It returns two verbatim anchors
+    (first / last words of the facts section); ``llm_extractor`` locates them in
+    the document text to build ``FactsSpan``. Every field is required so the
+    structured-output schema has no optional keys; nullable fields use ``| None``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    has_facts: bool = Field(description="False if the brief has no facts/background section.")
+    facts_start_anchor: str | None = Field(
+        description="Verbatim first 8-15 words of the facts section body (not the heading); null if has_facts is false."
+    )
+    facts_end_anchor: str | None = Field(
+        description="Verbatim last 8-15 words of the facts section; null if has_facts is false."
+    )
+    parties: list[str] = Field(description="Named parties to the case, as written.")
+    procedural_posture: str | None = Field(description="One sentence on how the case reached this court, or null.")
+    key_events: list[KeyEvent] = Field(description="3-10 key factual events, in document order.")
+    record_citations: list[str] = Field(description="Record cites appearing verbatim inside the facts section.")
+    case_citations: list[str] = Field(description="Case citations appearing verbatim inside the facts section.")
+    confidence: Confidence = Field(description="high | medium | low.")
+    notes: list[str] = Field(description="Short diagnostic notes; empty list if none.")
+
+
+def _inline_refs(node: Any, defs: dict[str, Any]) -> Any:
+    """Recursively replace ``$ref`` pointers with their ``$defs`` bodies."""
+    if isinstance(node, dict):
+        if "$ref" in node:
+            name = node["$ref"].rsplit("/", 1)[-1]
+            return _inline_refs(defs[name], defs)
+        return {k: _inline_refs(v, defs) for k, v in node.items() if k != "$defs"}
+    if isinstance(node, list):
+        return [_inline_refs(v, defs) for v in node]
+    return node
 
 
 def llm_output_json_schema() -> dict[str, Any]:
-    """JSON schema for the model-filled subset of ``FactsExtraction``.
+    """JSON schema for ``LlmFactsOutput`` suitable for ``output_config.format``.
 
-    Intended for tool-call / structured-output definitions (C2). Producer-owned
-    fields (``schema_version``, ``extractor_version``, ``doc_type_id``) are excluded
-    so the model cannot claim a version.
+    ``$ref``s are inlined and every object carries ``additionalProperties: false``
+    (from ``extra="forbid"``), which is what strict structured output requires.
     """
-    full = FactsExtraction.model_json_schema()
-    props = {k: v for k, v in full["properties"].items() if k in LLM_OUTPUT_FIELDS}
-    return {
-        "type": "object",
-        "properties": props,
-        "required": list(LLM_OUTPUT_FIELDS),
-        "additionalProperties": False,
-        "$defs": full.get("$defs", {}),
-    }
+    raw = LlmFactsOutput.model_json_schema()
+    schema: dict[str, Any] = _inline_refs(raw, raw.get("$defs", {}))
+    schema.pop("title", None)
+    return schema

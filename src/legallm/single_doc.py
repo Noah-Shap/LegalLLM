@@ -2,7 +2,7 @@
 
     legallm-extract brief.pdf                 # rules_v2 baseline, human-readable summary
     legallm-extract brief.txt --json          # full FactsExtraction + validation as JSON
-    legallm-extract brief.pdf --method llm-v1 # once an LLM extractor is registered (C2)
+    legallm-extract brief.pdf --method llm-v1 # Claude Sonnet 5 extractor (needs ANTHROPIC_API_KEY)
 
 Runs: load text (pypdf → PyMuPDF for PDFs; read for .txt) → normalise →
 preprocess → extractor → deterministic validators. OCR is not run here; the
@@ -21,13 +21,15 @@ from pathlib import Path
 from typing import Any
 
 from legallm.baseline_adapter import RULES_VERSION, extract_rules, preprocess_text
+from legallm.llm_extractor import EXTRACTOR_VERSION as LLM_VERSION
+from legallm.llm_extractor import LlmExtractionError, extract_llm
 from legallm.pipeline import doc_needs_ocr, extract_text_best, get_pdf_page_count_fast, normalize_text
 from legallm.schema import FactsExtraction
 from legallm.validators import ValidationReport, validate_extraction
 
 Extractor = Callable[[str, str], FactsExtraction]
 
-EXTRACTORS: dict[str, Extractor] = {RULES_VERSION: extract_rules}
+EXTRACTORS: dict[str, Extractor] = {RULES_VERSION: extract_rules, LLM_VERSION: extract_llm}
 DEFAULT_METHOD = RULES_VERSION
 DEFAULT_WARNINGS_LOG = Path("logs/pdf_parse_warnings.log")
 
@@ -185,7 +187,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         result = extract_from_file(args.file, method=args.method, doc_type_id=args.doc_type_id)
-    except (FileNotFoundError, NoTextError, KeyError) as e:
+    except (FileNotFoundError, NoTextError, KeyError, LlmExtractionError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
 
