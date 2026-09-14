@@ -240,6 +240,7 @@ Unique `search_result_id` in the 2k parquet: 1,506 of 1,599 rows (93 duplicate i
 | untracked (at session start) | 11 files in `data/processed/` (6 build manifests, 3 citation caches, 2 smoke manifests — `.json` was not ignored) + `intent.md` |
 | ignored | 32 paths (`data/raw/`, parquet/jsonl, `.venv`, root PDFs, `.coverage`, caches) |
 | `gh auth` | logged in as `Noah-Shap` (active) and `noahmattshap` |
+| **after this session** | pushed `74ddfda..a77518d` to `origin/master` (4 commits: hygiene, audit note, STATE.md, CLAUDE.md+GAP.md) plus this STATE.md update. Visibility still **PRIVATE** (R3: not changed without Noah). Archive for chat-side Claude: `C:\Users\noahm\CodingProjects\legalllm_a77518d.zip` (78 tracked files, 0.7 MB, no data). |
 
 ## 12. Secrets & PII scan
 
