@@ -211,10 +211,14 @@ class TestExtractor:
         with pytest.raises(LlmExtractionError, match="refused"):
             ex_fn(DOC)
 
-    def test_missing_api_key(self, monkeypatch):
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-        monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
-        with pytest.raises(LlmExtractionError, match="ANTHROPIC_API_KEY"):
+    def test_missing_credentials_message(self, monkeypatch):
+        import anthropic
+
+        def boom(*a, **k):
+            raise anthropic.AnthropicError("no creds")
+
+        monkeypatch.setattr(anthropic, "Anthropic", boom)
+        with pytest.raises(LlmExtractionError, match="ant auth login"):
             _ = LlmExtractor().client
 
     def test_prompt_sha_changes_with_prompt(self):

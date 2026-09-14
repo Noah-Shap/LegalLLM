@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 import time
 from dataclasses import dataclass
@@ -196,9 +195,14 @@ class LlmExtractor:
         if self._client is None:
             import anthropic  # lazy: importing the package must not require credentials
 
-            if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
-                raise LlmExtractionError("ANTHROPIC_API_KEY (or ANTHROPIC_AUTH_TOKEN) is not set")
-            self._client = anthropic.Anthropic(timeout=self.config.timeout_s, max_retries=self.config.max_retries)
+            # Credential resolution is the SDK's: ANTHROPIC_API_KEY -> ANTHROPIC_AUTH_TOKEN -> `ant auth login`
+            # OAuth profile -> WIF. Do not gate on env vars here or profile-based auth breaks.
+            try:
+                self._client = anthropic.Anthropic(timeout=self.config.timeout_s, max_retries=self.config.max_retries)
+            except anthropic.AnthropicError as e:
+                raise LlmExtractionError(
+                    "no Anthropic credentials found: set ANTHROPIC_API_KEY, or run `ant auth login`"
+                ) from e
         return self._client
 
     # -- request ----------------------------------------------------------
@@ -224,6 +228,8 @@ class LlmExtractor:
 
         try:
             return self.client.messages.create(**req)
+        except anthropic.AuthenticationError as e:
+            raise LlmExtractionError(f"authentication failed ({e.status_code}): {e.message}") from e
         except anthropic.RateLimitError as e:  # SDK already retried
             raise LlmExtractionError(f"rate limited after retries: {e.message}") from e
         except anthropic.APIStatusError as e:
