@@ -72,6 +72,45 @@ def _gold_desc(meta: dict[str, Any]) -> str:
     return f"{n} gold-labeled: {h} human, {j} judge-accepted"
 
 
+def _downstream_section(ds: dict[str, Any]) -> list[str]:
+    """Headline rows from ``downstream.json`` (legallm-downstream): resolution + BM25 Recall@k per span source."""
+    meta, S, B = ds["meta"], ds["summaries"], ds["baseline"]
+    k = meta["k"]
+    ms = meta["methods"]
+    out: list[str] = []
+    out.append("## Downstream: citation resolution and BM25 retrieval on each method's span")
+    out.append("")
+    out.append(
+        f"Spans → case citations → resolver cache ({meta['cache_entries']} entries, no network) and → masked query "
+        f"→ BM25 fitted on the build's train split minus the gold docs; targets fixed per doc (the gold span's "
+        f"resolved citations). {meta['n_docs']} gold docs, {meta['n_queries']} retrieval queries. Build baseline "
+        f"on its own test split: Recall@{k} {_num(B[f'recall@{k}'])} (n={B['n_test_queries']})."
+    )
+    out.append("")
+    out.append("| metric | " + " | ".join(ms) + " |")
+    out.append("|---|" + "---:|" * len(ms))
+    rows: list[tuple[str, Callable[[dict[str, Any]], str]]] = [
+        ("docs with ≥ 1 resolved citation", lambda s: _pct(s["docs_resolved_ge1_rate"])),
+        (
+            "resolved-target precision / recall vs gold span",
+            lambda s: f"{_pct(s['target_precision'])} / {_pct(s['target_recall'])}",
+        ),
+        ("spurious targets on no-facts docs", lambda s: f"{s['spurious_target_docs']}/{s['n_nofacts_docs']} docs"),
+        (f"BM25 Recall@{k} (n={S[ms[0]]['n_queries']})", lambda s: _num(s[f"recall@{k}"])),
+        (f"BM25 MRR@{k}", lambda s: _num(s[f"mrr@{k}"])),
+        (
+            f"BM25 Recall@{k}, queries with a span",
+            lambda s: f"{_num(s[f'recall@{k}_span_found'])} (n={s['n_queries_span_found']})",
+        ),
+    ]
+    for name, fn in rows:
+        out.append(f"| {name} | " + " | ".join(fn(S[m]) for m in ms) + " |")
+    out.append("")
+    out.append(f"Full downstream report: `{meta['run_dir']}/downstream.md`.")
+    out.append("")
+    return out
+
+
 def render_results(run_dir: Path, *, gold_note: str | None = None) -> str:
     """Build the curated results page from ``<run_dir>/summary.json``."""
     run_dir = Path(run_dir)
@@ -173,6 +212,11 @@ def render_results(run_dir: Path, *, gold_note: str | None = None) -> str:
                 f"wins {c['wins']} / ties {c['ties']} / losses {c['losses']}"
             )
             L.append("")
+
+    ds_path = run_dir / "downstream.json"
+    if ds_path.exists():
+        ds = json.loads(ds_path.read_text(encoding="utf-8"))
+        L.extend(_downstream_section(ds))
 
     L.append("## Validator flags and extractor notes")
     L.append("")

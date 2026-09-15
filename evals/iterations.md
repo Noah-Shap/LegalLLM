@@ -12,6 +12,8 @@ human-labeled documents the IoU column is computed on.
 
 ## Notes
 
+- **2026-09-15 · Downstream (item 10)** (`evals/runs/labeled-any_20260915-224235_c0ac4e/downstream.md`): resolved-target precision vs the gold span rules_v2 15.1% / llm-v1 88.5% / llm-v2 95.9%; recall 90.5% / 65.7% / 67.6%. Rules' higher raw resolution rate (42.5% vs 24.2%) is leakage from Argument/TOC text (192 targets on no-facts docs). BM25 Recall@10 on the 31 gold docs with targets: 0.126 / 0.145 / 0.120 (gold span 0.143) — flat; retrieval is bottlenecked by BM25, not by the span.
+
 - **2026-09-15 · Gold labels complete (120/120): 35 human, 85 judge-accepted.** Judge↔human κ 0.885 (rating), 1.00 (has_facts), span IoU 0.935 — the judge is validated. Headline on human-only gold (n=35): llm-v2 IoU 0.869 vs rules_v2 0.647; on all gold (n=120): 0.912 vs 0.572. The IoU-vs-gold column in the table above is now filled from the all-gold run.
 
 - **2026-09-15 · Opus 5 judge pass** (`evals/judge/judge-v1_20260915-153046_975e61`, taxonomy §F): rules_v2 rated correct on only 38/100 audit docs (41 incorrect); llm-v2 on 91/100. 33 documents have no facts section at all. If judge verdicts are taken as gold, llm-v2 IoU 0.928 vs rules 0.565; paired wins 73 / ties 37 / losses 8. Verdicts are attached to the gold set as suggestions; acceptance policy and the human overlap for κ are Noah's call.

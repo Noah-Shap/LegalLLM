@@ -156,3 +156,13 @@ Gold-referenced results after the review (`evals/runs/labeled-human_20260915-223
 
 llm-v2 vs rules_v2, paired on human-only gold: wins 25 / ties 5 / losses 5, mean ΔIoU +0.222;
 on all gold: wins 73 / ties 37 / losses 10, ΔIoU +0.340.
+
+## G. Downstream consequences (item 10, `evals/runs/labeled-any_20260915-224235_c0ac4e/downstream.md`)
+
+The rules spans' citation-resolution advantage is an artifact of classes §B/§F *includes_argument*, *includes_cover_or_toc*
+and R1 (spans on non-briefs): 965 unique case cites across 100 spans vs 158 in the 87 gold spans;
+192 resolved targets on 11 documents that have no facts section at all. Only 15.1% of rules
+targets are citations the gold facts section contains. llm-v2's remaining downstream loss is L2 (anchor failures →
+empty span → no targets) and 10 citations the resolver cache has never seen (not queried, R5): target recall
+67.6% at 95.9% precision. Retrieval (BM25 Recall@10) is flat across span sources including the gold
+span, so the retrieval task's ceiling is the retriever, not extraction — consistent with the April M4 result.

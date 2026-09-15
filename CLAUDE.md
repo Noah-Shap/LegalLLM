@@ -36,6 +36,7 @@ converted into a deployed LLM extraction app with a disciplined eval loop (Phase
   `extraction_eval.py` (C6/C7: span IoU, auto-rating, fidelity, cost/latency; cached; `legallm-xeval`),
   `results_page.py` (evals/RESULTS.md renderer).
   `judge.py` (Opus 5 judge: rates candidate spans, names issues, proposes anchors; feeds gold prefill/accept).
+  `downstream_eval.py` (C6 downstream: resolver-cache resolution % + BM25 Recall@10 on each method's span; cache only, no network).
 - `evals/gold/` — tracked gold labels (ids + offsets only) and `LABELING_GUIDE.md`; `evals/runs/` — eval reports; `evals/judge/` — judge verdicts; `evals/RESULTS.md`, `evals/error_taxonomy.md`, `evals/iterations.md`.
 - `tests/` — pytest, all offline (mock `requests`; PDFs built with PyMuPDF in tmp_path).
 - `data/` — gitignored; see `data/README.md`. Primary build: `data/processed/facts_dataset_2k.parquet`.
@@ -60,6 +61,7 @@ legallm-xeval --methods rules_v2 llm-v1 --subset labeled --backend claude-cli   
 legallm-xeval --render evals/runs/<id>                       # curated evals/RESULTS.md from a run
 legallm-judge --run evals/runs/<id> --methods rules_v2 llm-v2 --backend claude-cli   # Opus 5 judge -> evals/judge/
 legallm-gold prefill --judge evals/judge/<run>.jsonl ; legallm-gold accept-judge --policies nonbrief ...   # pre-labels
+legallm-downstream --run evals/runs/<id> --methods rules_v2 llm-v2   # resolver % + BM25 R@10 per span source -> <run>/downstream.md (offline)
 ```
 
 ## Environment

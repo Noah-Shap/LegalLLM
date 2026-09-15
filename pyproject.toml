@@ -48,6 +48,7 @@ legallm-extract = "legallm.single_doc:main"
 legallm-gold = "legallm.gold:main"
 legallm-xeval = "legallm.extraction_eval:main"
 legallm-judge = "legallm.judge:main"
+legallm-downstream = "legallm.downstream_eval:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

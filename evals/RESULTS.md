@@ -2,7 +2,7 @@
 
 Run `labeled-any_20260915-224235_c0ac4e` · gold `evals\gold\gold_v1.jsonl` · subset **labeled** · 120 documents (120 gold-labeled: 35 human, 85 judge-accepted) · 2026-09-15T22:42:35Z
 
-> **Gold source.** 120/120 documents are labeled: 35 by Noah (human review of the judge's hardest cases plus a sample per accept policy) and 85 accepted from the Opus 5 judge under explicit policies. Judge↔human agreement on the 35-doc overlap: rating kappa 0.885, has-facts kappa 1.00, span IoU 0.935. Human-only headline (n=35, run labeled-human_20260915-223814_a0177c): llm-v2 IoU 0.869 (≥0.9 on 85.7%) vs rules_v2 0.647 (34.3%); paired wins 25 / ties 5 / losses 5. See evals/error_taxonomy.md section F.1.
+> **Gold source.** 120/120 documents are labeled: 35 by Noah (human review of the judge's hardest cases plus a sample per accept policy) and 85 accepted from the Opus 5 judge under explicit policies. Judge↔human agreement on the 35-doc overlap: rating κ 0.885, has-facts κ 1.00, span IoU 0.935. Human-only headline (n=35, run labeled-human_20260915-223814_a0177c): llm-v2 IoU 0.869 (≥0.9 on 85.7%) vs rules_v2 0.647 (34.3%); paired wins 25 / ties 5 / losses 5. See evals/error_taxonomy.md section F.1.
 
 ## Methods
 
@@ -61,6 +61,21 @@ Run `labeled-any_20260915-224235_c0ac4e` · gold `evals\gold\gold_v1.jsonl` · s
 ## llm-v2 vs rules_v2 on labeled docs (paired IoU)
 
 - pairs 120 · mean IoU delta 0.340 · wins 73 / ties 37 / losses 10
+
+## Downstream: citation resolution and BM25 retrieval on each method's span
+
+Spans → case citations → resolver cache (15697 entries, no network) and → masked query → BM25 fitted on the build's train split minus the gold docs; targets fixed per doc (the gold span's resolved citations). 120 gold docs, 31 retrieval queries. Build baseline on its own test split: Recall@10 0.104 (n=131).
+
+| metric | rules_v2 | llm-v1 | llm-v2 | gold |
+|---|---:|---:|---:|---:|
+| docs with ≥ 1 resolved citation | 42.5% | 25.8% | 24.2% | 25.8% |
+| resolved-target precision / recall vs gold span | 15.1% / 90.5% | 88.5% / 65.7% | 95.9% / 67.6% | 100.0% / 100.0% |
+| spurious targets on no-facts docs | 11/33 docs | 3/33 docs | 0/33 docs | 0/33 docs |
+| BM25 Recall@10 (n=31) | 0.126 | 0.145 | 0.120 | 0.143 |
+| BM25 MRR@10 | 0.130 | 0.139 | 0.064 | 0.134 |
+| BM25 Recall@10, queries with a span | 0.135 (n=29) | 0.167 (n=27) | 0.133 (n=28) | 0.143 (n=31) |
+
+Full downstream report: `evals/runs/labeled-any_20260915-224235_c0ac4e/downstream.md`.
 
 ## Validator flags and extractor notes
 
