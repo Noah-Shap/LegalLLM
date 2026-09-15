@@ -733,9 +733,22 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--backend", choices=["api", "claude-cli"], default=None, help="LLM transport for llm-* methods")
     ap.add_argument("--label", default=None, help="prefix for the run id (e.g. 'llm-v1-first')")
     ap.add_argument("--quiet", action="store_true")
+    ap.add_argument(
+        "--render", type=Path, default=None, help="render the results page from an existing run dir and exit"
+    )
+    ap.add_argument("--results-out", type=Path, default=Path("evals/RESULTS.md"), help="where --render writes")
     args = ap.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):  # Windows consoles default to cp1252; the report uses ≥ / ↔ / —
         sys.stdout.reconfigure(errors="replace")
+    if args.render is not None:
+        from legallm.results_page import render_results
+
+        page = render_results(args.render)
+        args.results_out.parent.mkdir(parents=True, exist_ok=True)
+        args.results_out.write_text(page, encoding="utf-8")
+        print(page)
+        print(f"wrote {args.results_out}")
+        return 0
     if args.backend:
         from legallm.llm_extractor import configure_default
 
