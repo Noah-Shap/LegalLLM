@@ -46,6 +46,7 @@ legallm = "legallm.cli:main"
 legallm-eval = "legallm.eval_cli:main"
 legallm-extract = "legallm.single_doc:main"
 legallm-gold = "legallm.gold:main"
+legallm-xeval = "legallm.extraction_eval:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

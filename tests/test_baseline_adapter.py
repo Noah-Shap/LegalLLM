@@ -25,6 +25,16 @@ class TestPreprocessText:
             once = preprocess_text(raw)
             assert preprocess_text(once) == once
 
+    def test_fixed_point_on_real_document_shape(self):
+        # One real-PDF shape where a single pass is not idempotent: a trailing newline after a
+        # roman-numeral line. preprocess_text must return a fixed point.
+        raw = "IN THE COURT\n\nI. STATEMENT OF FACTS\n\nBody text here.\n\nII\n"
+        once = preprocess_text(raw)
+        assert preprocess_text(once) == once
+        from legallm.facts_extractor import merge_roman_heading_lines, strip_pacer_headers
+
+        assert merge_roman_heading_lines(strip_pacer_headers(once)) == once
+
     def test_strips_pacer_header(self):
         raw = "Case 1:23-cv-00001 Document 5 Filed 01/01/24 Page 1 of 10\nSTATEMENT OF FACTS\nfoo"
         out = preprocess_text(raw)

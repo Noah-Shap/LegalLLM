@@ -1,0 +1,30 @@
+IN THE UNITED STATES COURT OF APPEALS
+FOR THE NINTH CIRCUIT
+
+I. STATEMENT OF FACTS
+
+On June 15, 2023, the plaintiff Orchard Holdings LLC entered into a contract with defendant Pine Street Properties for the purchase of commercial real estate located at 123 Main Street. The contract specified a closing date of August 1, 2023. Prior to closing, an inspection revealed significant structural damage to the foundation that had not been disclosed by the seller. The plaintiff retained an expert who estimated repair costs at approximately two hundred thousand dollars. Despite repeated demands for disclosure of known defects, the defendant maintained that the property was in good condition. Several witnesses corroborated the poor condition of the building including the building inspector and two independent contractors. See 2-ER-45; 2-ER-51.
+
+II. PROCEDURAL HISTORY
+
+The plaintiff filed suit on September 1, 2023 in the District Court for the Central District of California. The defendant moved to dismiss under Rule 12(b)(6), which was denied on November 15, 2023. Discovery proceeded through March 2024, during which time the defendant produced documents showing prior knowledge of the structural defects. The district court granted summary judgment in favor of the plaintiff on April 30, 2024. The defendant timely appealed. See 1-ER-3.
+
+III. SUMMARY OF ARGUMENT
+
+The district court correctly held that the seller's silence was actionable. Its judgment should be affirmed because the undisputed record establishes knowledge and concealment.
+
+IV. ARGUMENT
+
+A seller who knows of a latent defect must disclose it. The court below applied the correct rule.
+
+A. Nondisclosure of a known latent defect is actionable.
+
+This Court has long held that a seller who knows of a material latent defect and remains silent commits fraud by omission. The undisputed record shows that the seller received the engineering report describing the foundation damage eleven months before closing and never disclosed it. The seller's reliance on the 'as-is' clause is misplaced, because such clauses do not shield a party from liability for affirmative concealment or for failing to disclose a defect that the buyer could not have discovered through reasonable inspection.
+
+B. The damages award was supported by competent evidence.
+
+The expert's repair estimate was based on a site inspection, industry-standard cost data, and the contractor bids in the record. The seller offered no competing estimate and cross-examined the expert only on the timing of the inspection. On this record the district court did not clearly err in accepting the estimate, and the seller's request for a remittitur should be denied.
+
+CONCLUSION
+
+Affirm.

@@ -1,0 +1,31 @@
+IN THE UNITED STATES COURT OF APPEALS
+FOR THE THIRD CIRCUIT
+
+TABLE OF CONTENTS
+
+STATEMENT OF FACTS ............... 1
+ARGUMENT ......................... 10
+
+TABLE OF AUTHORITIES
+
+Some v. Case, 123 F.3d 456 (3d Cir. 2020)
+
+I. STATEMENT OF FACTS
+
+On January 1, 2024, Appellant Jane Roe filed a complaint alleging that Respondent Acme Corp. violated 42 U.S.C. 1983 by terminating her employment after she reported safety violations to the state agency. The district court held an evidentiary hearing on March 15, 2024. Witness testimony established that the events occurred on the premises of Respondent and that two supervisors had been warned in writing. The court noted that 500 F.3d 100 supported the claim. Additional facts were presented including evidence from 300 U.S. 200 and the record showed that the defendant had prior knowledge of the situation as documented in various depositions and exhibits filed with the court over the course of several months of pre-trial proceedings and discovery disputes. See 1-ER-102. On June 3, 2024, the district court granted summary judgment for Acme Corp. Appellant timely appealed.
+
+II. ARGUMENT
+
+This Court should reverse because the lower court erred in its application of the standard of review. We argue that the district court abused its discretion in weighing the evidence and in excluding the supervisor memoranda.
+
+A. The district court misapplied the summary-judgment standard.
+
+Summary judgment is appropriate only where there is no genuine dispute of material fact. The court below resolved disputed questions about the supervisors' knowledge against the non-moving party, which the rule forbids. The written warnings alone create a triable issue on notice, and the court's contrary conclusion rested on weighing credibility rather than on the absence of evidence. Each of the three memoranda was authenticated and admissible, and the court's decision to disregard them because they were undated cannot be squared with the governing rule.
+
+B. The exclusion of the supervisor memoranda was an abuse of discretion.
+
+Evidentiary rulings are reviewed for abuse of discretion, but a ruling that rests on an erroneous view of the law is an abuse by definition. The court excluded the memoranda as hearsay without considering that they were offered for notice rather than for their truth. Because notice was the central disputed element, the error was not harmless, and reversal is required. The appellee's argument that the memoranda were cumulative fails because no other evidence in the record addressed the supervisors' knowledge before the termination decision was made.
+
+CONCLUSION
+
+The judgment should be reversed.

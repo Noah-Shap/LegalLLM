@@ -21,9 +21,20 @@ from legallm.schema import FactsExtraction, FactsSpan
 RULES_VERSION = "rules_v2"
 
 
-def preprocess_text(clean: str) -> str:
-    """Apply the extractor's preprocessing to normalised text (idempotent)."""
-    return merge_roman_heading_lines(strip_pacer_headers(clean))
+def preprocess_text(clean: str, *, max_passes: int = 4) -> str:
+    """Apply the extractor's preprocessing to normalised text until it reaches a fixed point.
+
+    A single pass is not always idempotent (a handful of real PDFs lose one trailing
+    character on the second pass), and the offset contract requires that the rules
+    extractor's internal pass be a no-op on the text it is given.
+    """
+    text = clean
+    for _ in range(max_passes):
+        nxt = merge_roman_heading_lines(strip_pacer_headers(text))
+        if nxt == text:
+            return text
+        text = nxt
+    return text
 
 
 def _dedupe(items: list[str]) -> list[str]:
