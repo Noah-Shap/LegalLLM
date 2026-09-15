@@ -6,7 +6,7 @@ Checks (all pure, no network):
   span_text_matches   facts_span.text == doc_text[start:end]
   facts_nonempty      a non-empty facts span exists (when required)
   citation_fidelity   every emitted case/record citation occurs verbatim in doc_text
-                      (whitespace-normalised) — the anti-hallucination gate
+                      (ignoring whitespace and dash/quote glyphs) — the anti-hallucination gate
   dates_parseable     every key_events[].date parses with an accepted format
 
 Flags are stable strings so the eval harness can count them (C6/C8).
@@ -61,10 +61,26 @@ def parse_date(s: str | None) -> bool:
     return False
 
 
-def citation_supported(cite: str, doc_text_squashed: str) -> bool:
-    """True if ``cite`` occurs verbatim (modulo whitespace) in the squashed document text."""
-    c = squash_ws(cite)
-    return bool(c) and c in doc_text_squashed
+_DASH_QUOTE_MAP = str.maketrans({"‘": "'", "’": "'", "“": '"', "”": '"', "–": "-", "—": "-", "‑": "-"})
+
+
+def cite_key(s: str) -> str:
+    """Canonical form for citation fidelity: no whitespace at all, ASCII dashes/quotes.
+
+    PDF text carries hyphen-break artifacts ("1- ER-102") and typographic dashes
+    ("1-ER-106–07"); a model that writes "1-ER-102" has still copied the cite.
+    Characters and their order are otherwise unchanged, so this stays a verbatim test.
+    """
+    return _WS.sub("", s.translate(_DASH_QUOTE_MAP))
+
+
+def citation_supported(cite: str, doc_text_key: str) -> bool:
+    """True if ``cite`` occurs in the document text modulo whitespace and dash/quote glyphs.
+
+    ``doc_text_key`` must be ``cite_key(doc_text)``.
+    """
+    c = cite_key(cite)
+    return bool(c) and c in doc_text_key
 
 
 @dataclass
@@ -144,9 +160,9 @@ def validate_extraction(
         flags.append("empty_facts")
 
     # citation_fidelity
-    squashed = squash_ws(doc_text)
+    doc_key = cite_key(doc_text)
     cites = list(extraction.case_citations) + list(extraction.record_citations)
-    unsupported = [c for c in cites if not citation_supported(c, squashed)]
+    unsupported = [c for c in cites if not citation_supported(c, doc_key)]
     checks["citation_fidelity"] = not unsupported
     for c in unsupported:
         flags.append(f"unsupported_citation:{squash_ws(c)[:80]}")

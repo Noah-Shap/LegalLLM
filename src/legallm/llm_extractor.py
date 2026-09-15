@@ -26,11 +26,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import time
 from dataclasses import dataclass
 from typing import Any
 
+from legallm.claude_cli import BACKEND_NAME as CLI_BACKEND
+from legallm.claude_cli import ClaudeCliClient, ClaudeCliError
 from legallm.prompts import FACTS_SYSTEM_V1, FACTS_USER_V1, PROMPT_VERSION
 from legallm.schema import FactsExtraction, FactsSpan, LlmFactsOutput, llm_output_json_schema
 from legallm.validators import parse_payload
@@ -156,9 +159,15 @@ def estimate_cost_usd(model: str, usage: Any) -> float | None:
     return round((inp * p["input"] + out * p["output"] + cw * p["input"] * 1.25 + cr * p["input"] * 0.1) / 1e6, 6)
 
 
+BACKENDS = ("api", CLI_BACKEND)
+
+
 @dataclass(frozen=True)
 class LlmConfig:
     model: str = DEFAULT_MODEL
+    backend: str = os.environ.get(
+        "LEGALLM_LLM_BACKEND", "api"
+    )  # "api" (Messages API) | "claude-cli" (headless claude -p)
     effort: str = "medium"  # low | medium | high | xhigh | max
     max_tokens: int = 8192
     max_doc_chars: int = 400_000  # ~100k tokens; head window beyond this
@@ -192,7 +201,11 @@ class LlmExtractor:
 
     @property
     def client(self) -> Any:
+        if self._client is None and self.config.backend == CLI_BACKEND:
+            self._client = ClaudeCliClient(timeout_s=max(self.config.timeout_s, 300.0))
         if self._client is None:
+            if self.config.backend not in BACKENDS:
+                raise LlmExtractionError(f"unknown backend {self.config.backend!r}; choose one of {BACKENDS}")
             import anthropic  # lazy: importing the package must not require credentials
 
             # Credential resolution is the SDK's: ANTHROPIC_API_KEY -> ANTHROPIC_AUTH_TOKEN -> `ant auth login`
@@ -224,10 +237,17 @@ class LlmExtractor:
         return req, truncated
 
     def _call(self, req: dict[str, Any]) -> Any:
+        client = self.client
+        if isinstance(client, ClaudeCliClient):
+            try:
+                return client.messages.create(**req)
+            except ClaudeCliError as e:
+                raise LlmExtractionError(f"claude-cli: {e}") from e
+
         import anthropic
 
         try:
-            return self.client.messages.create(**req)
+            return client.messages.create(**req)
         except anthropic.AuthenticationError as e:
             raise LlmExtractionError(f"authentication failed ({e.status_code}): {e.message}") from e
         except anthropic.RateLimitError as e:  # SDK already retried
@@ -252,6 +272,7 @@ class LlmExtractor:
         latency = time.perf_counter() - t0
 
         provenance: dict[str, Any] = {
+            "backend": self.config.backend,
             "model_id": getattr(resp, "model", self.config.model),
             "prompt_version": self.config.prompt_version,
             "prompt_sha": self.prompt_sha,
@@ -273,6 +294,12 @@ class LlmExtractor:
                     "cost_usd": estimate_cost_usd(self.config.model, usage),
                 }
             )
+        cli_meta = getattr(resp, "cli", None)
+        if isinstance(cli_meta, dict):
+            # Subscription-billed: cost_usd is the CLI's API-rate estimate, not an invoice line.
+            provenance.update({"billing": "subscription", "cli": cli_meta})
+            if cli_meta.get("total_cost_usd") is not None:
+                provenance["cost_usd"] = cli_meta["total_cost_usd"]
 
         stop = provenance["stop_reason"]
         if stop == "refusal":
@@ -326,6 +353,13 @@ def default_extractor() -> LlmExtractor:
     global _default
     if _default is None:
         _default = LlmExtractor()
+    return _default
+
+
+def configure_default(**overrides: Any) -> LlmExtractor:
+    """Replace the default extractor with one built from ``LlmConfig(**overrides)``."""
+    global _default
+    _default = LlmExtractor(LlmConfig(**overrides))
     return _default
 
 

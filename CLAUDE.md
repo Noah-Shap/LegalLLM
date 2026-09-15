@@ -30,6 +30,8 @@ converted into a deployed LLM extraction app with a disciplined eval loop (Phase
   Phase-1 layer: `schema.py` (C1 `FactsExtraction`, pydantic), `baseline_adapter.py` (C3 rules_v2 →
   schema; `preprocess_text` defines the offset contract), `validators.py` (C4 deterministic checks),
   `single_doc.py` (one PDF/text → extraction + validation; extractor registry for LLM methods).
+  `llm_extractor.py` (C2, Sonnet 5, anchor-based spans, provenance), `prompts.py` (versioned prompts),
+  `claude_cli.py` (headless `claude -p` transport; strips API key, runs in an empty temp dir).
 - `tests/` — pytest, all offline (mock `requests`; PDFs built with PyMuPDF in tmp_path).
 - `data/` — gitignored; see `data/README.md`. Primary build: `data/processed/facts_dataset_2k.parquet`.
 - `reports/` — eval reports and the 100-doc gold audit set (unrated).
@@ -46,6 +48,8 @@ mypy src/legallm/                            # must be clean (CI gate)
 legallm --query "..." --max_docs N [--no_scope_filter] [--resolve_citations] [--enable_ocr]   # LIVE API — see R5
 legallm-eval --parquet data/processed/facts_dataset_2k.parquet --baselines popularity bm25
 legallm-extract data/raw/pdfs/<id>.pdf [--json --out out.json] [--method rules_v2]   # single doc, offline
+legallm-extract <pdf> --method llm-v1 --backend claude-cli   # Sonnet 5 via headless claude -p (subscription, no API credits)
+legallm-extract <pdf> --method llm-v1                        # same via Messages API (needs funded ANTHROPIC_API_KEY)
 ```
 
 ## Environment

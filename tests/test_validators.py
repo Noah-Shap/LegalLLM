@@ -3,6 +3,7 @@
 from legallm.schema import FactsExtraction, FactsSpan, KeyEvent
 from legallm.validators import (
     citation_supported,
+    cite_key,
     parse_date,
     parse_payload,
     squash_ws,
@@ -45,11 +46,19 @@ class TestHelpers:
         assert parse_date(None)
 
     def test_citation_supported_whitespace_insensitive(self):
-        sq = squash_ws(DOC)
-        assert citation_supported("500 F.3d 100", sq)
-        assert citation_supported("1-ER-102 shows the hearing", sq)
-        assert not citation_supported("999 U.S. 1", sq)
-        assert not citation_supported("   ", sq)
+        key = cite_key(DOC)
+        assert citation_supported("500 F.3d 100", key)
+        assert citation_supported("1-ER-102 shows the hearing", key)
+        assert not citation_supported("999 U.S. 1", key)
+        assert not citation_supported("   ", key)
+
+    def test_citation_supported_hyphen_break_and_dash_glyphs(self):
+        doc = "See 1- ER-102 and 1-ER-106–07 and “Foo” v. Bar, 5 F.3d 1."
+        key = cite_key(doc)
+        assert citation_supported("1-ER-102", key)  # hyphen-break artifact in source
+        assert citation_supported("1-ER-106-07", key)  # en dash in source
+        assert citation_supported('"Foo" v. Bar, 5 F.3d 1', key)  # curly quotes in source
+        assert not citation_supported("1-ER-103", key)
 
 
 class TestValidateExtraction:

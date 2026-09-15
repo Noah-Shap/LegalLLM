@@ -183,7 +183,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--json", action="store_true", help="print full JSON (extraction + validation)")
     ap.add_argument("--include-text", action="store_true", help="with --json, include the preprocessed doc text")
     ap.add_argument("--out", type=str, default=None, help="write JSON to this path")
+    ap.add_argument(
+        "--backend",
+        choices=["api", "claude-cli"],
+        default=None,
+        help="LLM transport for llm-* methods: Messages API (default) or headless claude -p (subscription)",
+    )
     args = ap.parse_args(argv)
+    if args.backend:
+        from legallm.llm_extractor import configure_default
+
+        configure_default(backend=args.backend)
 
     try:
         result = extract_from_file(args.file, method=args.method, doc_type_id=args.doc_type_id)
