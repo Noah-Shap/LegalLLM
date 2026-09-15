@@ -600,13 +600,28 @@ def format_report(
 # ---------------------------------------------------------------------------
 
 
-def select_records(records: list[GoldRecord], subset: str, limit: int | None) -> list[GoldRecord]:
+def _labeled_by(r: GoldRecord, labeler: str) -> bool:
+    if r.status != "labeled":
+        return False
+    if labeler == "any":
+        return True
+    if labeler == "human":
+        return r.is_human_labeled
+    if labeler == "judge":
+        return not r.is_human_labeled
+    raise ValueError(f"unknown labeler filter {labeler!r}")
+
+
+def select_records(
+    records: list[GoldRecord], subset: str, limit: int | None, *, labeler: str = "any"
+) -> list[GoldRecord]:
+    """``labeler`` narrows which labels count as gold: 'any', 'human' (default for headline numbers), 'judge'."""
     if subset == "labeled":
-        sel = [r for r in records if r.status == "labeled"]
+        sel = [r for r in records if _labeled_by(r, labeler)]
     elif subset == "all":
         sel = list(records)
     elif subset == "smoke":
-        labeled = [r for r in records if r.status == "labeled"]
+        labeled = [r for r in records if _labeled_by(r, labeler)]
         sel = (labeled or list(records))[: (limit or 10)]
     else:
         raise ValueError(f"unknown subset {subset!r}")
@@ -628,9 +643,10 @@ def run_eval(
     progress: bool = False,
     extractors: dict[str, Any] | None = None,
     run_label: str | None = None,
+    labeler: str = "any",
 ) -> Path:
     """Run every method over the selected gold docs; write per_doc.jsonl, summary.json, report.md, manifest.json."""
-    records = select_records(load_gold(gold_path), subset, limit)
+    records = select_records(load_gold(gold_path), subset, limit, labeler=labeler)
     if not records:
         raise ValueError(f"no records selected (gold={gold_path}, subset={subset})")
     doc_texts = load_doc_texts(records, progress=progress)
@@ -682,6 +698,9 @@ def run_eval(
         "subset": subset,
         "n_docs": len(records),
         "n_gold": sum(r.status == "labeled" for r in records),
+        "n_gold_human": sum(r.is_human_labeled for r in records),
+        "n_gold_judge": sum(r.status == "labeled" and not r.is_human_labeled for r in records),
+        "labeler_filter": labeler,
         "timestamp": manifest.timestamp_utc,
     }
     (out_dir / "summary.json").write_text(
@@ -743,6 +762,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--force", action="store_true", help="ignore cached extractions")
     ap.add_argument("--backend", choices=["api", "claude-cli"], default=None, help="LLM transport for llm-* methods")
     ap.add_argument("--label", default=None, help="prefix for the run id (e.g. 'llm-v1-first')")
+    ap.add_argument(
+        "--labeler",
+        choices=["any", "human", "judge"],
+        default="any",
+        help="which labels count as gold for --subset labeled/smoke (human = exclude judge-accepted labels)",
+    )
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument(
         "--render", type=Path, default=None, help="render the results page from an existing run dir and exit"
@@ -776,6 +801,7 @@ def main(argv: list[str] | None = None) -> int:
             force=args.force,
             progress=not args.quiet,
             run_label=args.label,
+            labeler=args.labeler,
         )
     except ValueError as e:
         print(f"error: {e}", file=sys.stderr)

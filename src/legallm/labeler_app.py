@@ -120,6 +120,40 @@ def main() -> None:
         st.session_state[key] = list(rec.label.gold_span or rec.rules_span or [0, min(len(doc), 2000)])
     span = st.session_state[key]
 
+    # ---------------- judge suggestion (pre-label), if any
+    sug = rec.suggestion
+    if sug:
+        with st.container(border=True):
+            st.markdown(
+                f"**Judge suggestion** (`{sug.get('judge_model')}`, confidence **{sug.get('confidence')}**) · "
+                f"kind: `{sug.get('document_kind')}` · has facts: **{'yes' if sug.get('has_facts') else 'no'}** · "
+                f"rules span rated **{sug.get('rules_rating') or '—'}** · preferred: {sug.get('preferred')}"
+            )
+            st.caption(sug.get("summary", ""))
+            for m, iss in (sug.get("issues") or {}).items():
+                st.caption(f"{m}: {', '.join(iss)} — {(sug.get('comments') or {}).get(m, '')}")
+            j1, j2 = st.columns(2)
+            if sug.get("suggested_span") and j1.button(
+                f"Load suggested span ({sug.get('span_basis')})", key=f"sugload_{rec.gold_id}"
+            ):
+                st.session_state[key] = list(sug["suggested_span"])
+                st.rerun()
+            if j2.button("Accept suggestion as my label", key=f"sugacc_{rec.gold_id}"):
+                rating = sug.get("rules_rating") if rec.rules_span else None
+                set_label(
+                    rec,
+                    rating=cast(Rating | None, rating),
+                    has_facts=bool(sug.get("has_facts")),
+                    gold_span=sug.get("suggested_span") if sug.get("has_facts") else None,
+                    notes=f"[accepted judge] {sug.get('summary', '')}",
+                    labeler=args.labeler,
+                )
+                save_gold(records, args.gold)
+                st.toast(f"accepted judge suggestion for {rec.gold_id}")
+                if pos < len(vis_ids) - 1:
+                    st.session_state.cur = vis_ids[pos + 1]
+                st.rerun()
+
     left, right = st.columns([1, 1])
     with left:
         st.markdown("**Rules_v2 span (as extracted)**")

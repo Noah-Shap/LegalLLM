@@ -69,6 +69,14 @@ class GoldRecord(BaseModel):
     doc_chars: int | None = None
     label: GoldLabel = Field(default_factory=GoldLabel)
     status: Status = "pending"
+    suggestion: dict[str, Any] | None = Field(
+        default=None,
+        description="LLM-judge pre-label (legallm-gold prefill): ratings, issues, suggested span. Never ground truth.",
+    )
+
+    @property
+    def is_human_labeled(self) -> bool:
+        return self.status == "labeled" and not (self.label.labeler or "").startswith("judge:")
 
     @property
     def effective_span(self) -> list[int] | None:
@@ -280,10 +288,157 @@ def set_label(
     return rec
 
 
+# ---------------------------------------------------------------------------
+# Judge pre-labels (legallm-judge verdicts -> suggestions -> optional bulk accept)
+# ---------------------------------------------------------------------------
+
+POLICIES: tuple[str, ...] = ("nonbrief", "rules_correct", "llm_correct", "corrected")
+
+
+def load_verdicts(path: Path) -> dict[str, dict[str, Any]]:
+    """{gold_id: verdict dict} from a legallm-judge JSONL."""
+    out: dict[str, dict[str, Any]] = {}
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                v = json.loads(line)
+                out[v["gold_id"]] = v
+    return out
+
+
+def suggestion_from_verdict(v: dict[str, Any], run_name: str) -> dict[str, Any] | None:
+    """Reduce a judge verdict to what the labeler and the accept policies need."""
+    if v.get("error"):
+        return None
+    cands = {v["method_a"]: ("a", v["span_a"]), v["method_b"]: ("b", v["span_b"])}
+    rules = cands.get("rules_v2")
+    llm = next(((m, x[1]) for m, x in cands.items() if m.startswith("llm")), None)
+    has_facts = bool(v.get("is_brief_with_facts"))
+    corrected = v.get("corrected_span")
+    ratings = {m: v[f"rating_{ab}"] for m, (ab, _) in cands.items()}
+    issues = {m: v[f"issues_{ab}"] for m, (ab, _) in cands.items()}
+    comments = {m: v[f"comment_{ab}"] for m, (ab, _) in cands.items()}
+    suggested_span: list[int] | None = None
+    basis = "none"
+    if has_facts:
+        if corrected:
+            suggested_span, basis = corrected, "judge_corrected"
+        elif rules and ratings.get("rules_v2") == "correct" and rules[1]:
+            suggested_span, basis = rules[1], "rules_span"
+        else:
+            for m, (_, span) in cands.items():
+                if m.startswith("llm") and ratings.get(m) == "correct" and span:
+                    suggested_span, basis = span, f"{m}_span"
+                    break
+    return {
+        "judge_model": v.get("judge_model"),
+        "judge_version": v.get("judge_version"),
+        "judge_run": run_name,
+        "document_kind": v.get("document_kind"),
+        "has_facts": has_facts,
+        "ratings": ratings,
+        "issues": issues,
+        "comments": comments,
+        "preferred": v.get("preferred"),
+        "confidence": v.get("confidence"),
+        "summary": v.get("summary", ""),
+        "rules_rating": ratings.get("rules_v2"),
+        "suggested_span": suggested_span,
+        "span_basis": basis,
+        "corrected_notes": v.get("corrected_notes") or [],
+        "llm_method": llm[0] if llm else None,
+    }
+
+
+def prefill(
+    records: list[GoldRecord], verdicts: dict[str, dict[str, Any]], run_name: str, *, overwrite: bool = False
+) -> dict[str, int]:
+    """Attach judge suggestions to records (pending ones by default). Never touches labels."""
+    n_set = n_skip = n_missing = 0
+    for rec in records:
+        v = verdicts.get(rec.gold_id)
+        if v is None:
+            n_missing += 1
+            continue
+        if rec.suggestion is not None and not overwrite:
+            n_skip += 1
+            continue
+        s = suggestion_from_verdict(v, run_name)
+        if s is None:
+            n_missing += 1
+            continue
+        rec.suggestion = s
+        n_set += 1
+    return {"set": n_set, "skipped_existing": n_skip, "missing_or_errored": n_missing}
+
+
+def accept_policy(rec: GoldRecord, policies: set[str], min_confidence: str = "high") -> str | None:
+    """Which accept policy (if any) applies to a pending record with a suggestion."""
+    s = rec.suggestion
+    if s is None or rec.status != "pending":
+        return None
+    order = {"low": 0, "medium": 1, "high": 2}
+    if order.get(s.get("confidence") or "low", 0) < order.get(min_confidence, 2):
+        return None
+    if "nonbrief" in policies and s["has_facts"] is False:
+        return "nonbrief"
+    if s["has_facts"] and s.get("suggested_span"):
+        basis = s.get("span_basis") or ""
+        if "rules_correct" in policies and basis == "rules_span":
+            return "rules_correct"
+        if "llm_correct" in policies and basis.endswith("_span") and basis.startswith("llm"):
+            return "llm_correct"
+        if "corrected" in policies and basis == "judge_corrected":
+            return "corrected"
+    return None
+
+
+def accept_judge(
+    records: list[GoldRecord],
+    *,
+    policies: set[str],
+    min_confidence: str = "high",
+    dry_run: bool = False,
+) -> dict[str, int]:
+    """Bulk-accept judge suggestions as labels (labeler='judge:<model>'). Human labels are never overwritten."""
+    counts: Counter[str] = Counter()
+    for rec in records:
+        pol = accept_policy(rec, policies, min_confidence)
+        if pol is None:
+            continue
+        counts[pol] += 1
+        if dry_run:
+            continue
+        s = rec.suggestion or {}
+        rules_rating = s.get("rules_rating")
+        if pol == "nonbrief":
+            rating = ("incorrect" if rec.rules_span else None) if rec.source == "audit_set" else None
+            set_label(
+                rec,
+                rating=rating if rating in ("correct", "partially_correct", "incorrect") else None,  # type: ignore[arg-type]
+                has_facts=False,
+                gold_span=None,
+                notes=f"[judge:{pol}] {s.get('document_kind')}: {s.get('summary', '')}",
+                labeler=f"judge:{s.get('judge_model')}",
+            )
+        else:
+            set_label(
+                rec,
+                rating=rules_rating if rec.rules_span else None,  # type: ignore[arg-type]
+                has_facts=True,
+                gold_span=s.get("suggested_span"),
+                notes=f"[judge:{pol}] {s.get('summary', '')}",
+                labeler=f"judge:{s.get('judge_model')}",
+            )
+    return dict(counts)
+
+
 def stats(records: list[GoldRecord]) -> dict[str, Any]:
     by_status = Counter(r.status for r in records)
     by_source = Counter((r.source, r.status) for r in records)
     ratings = Counter(r.label.rating for r in records if r.label.rating)
+    by_labeler = Counter(("human" if r.is_human_labeled else "judge") for r in records if r.status == "labeled")
+    with_suggestion = sum(r.suggestion is not None for r in records)
 
     def _is_corrected(r: GoldRecord) -> bool:
         return r.label.gold_span is not None and r.label.gold_span != r.rules_span
@@ -296,6 +451,8 @@ def stats(records: list[GoldRecord]) -> dict[str, Any]:
         "by_status": dict(by_status),
         "by_source_status": {f"{s}/{st}": n for (s, st), n in sorted(by_source.items())},
         "ratings": dict(ratings),
+        "by_labeler": dict(by_labeler),
+        "with_suggestion": with_suggestion,
         "with_gold_span": with_gold_span,
         "boundary_corrected": corrected,
         "boundary_corrected_low_medium": corrected_lowmed,
@@ -306,6 +463,7 @@ def stats(records: list[GoldRecord]) -> dict[str, Any]:
 def format_stats(st: dict[str, Any]) -> str:
     lines = [f"total: {st['total']}", f"by_status: {st['by_status']}", f"by_source/status: {st['by_source_status']}"]
     lines.append(f"ratings: {st['ratings']}")
+    lines.append(f"labeled by: {st['by_labeler']}; judge suggestions attached: {st['with_suggestion']}")
     lines.append(
         f"gold spans saved: {st['with_gold_span']}; boundary corrected (differs from rules): "
         f"{st['boundary_corrected']} (low/medium: {st['boundary_corrected_low_medium']}) "
@@ -337,6 +495,13 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("stats", help="labeling progress")
     p_label = sub.add_parser("label", help="launch the Streamlit labeler")
     p_label.add_argument("--port", type=int, default=8501)
+    p_pre = sub.add_parser("prefill", help="attach LLM-judge verdicts as suggestions (labels untouched)")
+    p_pre.add_argument("--judge", type=Path, required=True, help="legallm-judge verdicts JSONL")
+    p_pre.add_argument("--overwrite", action="store_true", help="replace existing suggestions")
+    p_acc = sub.add_parser("accept-judge", help="bulk-accept judge suggestions as labels (labeler=judge:<model>)")
+    p_acc.add_argument("--policies", nargs="+", choices=POLICIES, default=["nonbrief"])
+    p_acc.add_argument("--min-confidence", choices=["low", "medium", "high"], default="high")
+    p_acc.add_argument("--dry-run", action="store_true")
 
     args = ap.parse_args(argv)
 
@@ -367,6 +532,22 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{len(records) - len(problems)}/{len(records)} records OK")
         return 1 if problems else 0
     if args.cmd == "stats":
+        print(format_stats(stats(records)))
+        return 0
+    if args.cmd == "prefill":
+        verdicts = load_verdicts(args.judge)
+        counts = prefill(records, verdicts, args.judge.stem, overwrite=args.overwrite)
+        save_gold(records, args.gold)
+        print(f"prefill from {args.judge.name}: {counts}")
+        return 0
+    if args.cmd == "accept-judge":
+        counts = accept_judge(
+            records, policies=set(args.policies), min_confidence=args.min_confidence, dry_run=args.dry_run
+        )
+        if not args.dry_run:
+            save_gold(records, args.gold)
+        mode = "dry run" if args.dry_run else "applied"
+        print(f"accept-judge ({mode}; policies={args.policies}, min_confidence={args.min_confidence}): {counts or {}}")
         print(format_stats(stats(records)))
         return 0
     if args.cmd == "label":
