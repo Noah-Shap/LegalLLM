@@ -60,6 +60,14 @@ class TestHelpers:
         assert citation_supported('"Foo" v. Bar, 5 F.3d 1', key)  # curly quotes in source
         assert not citation_supported("1-ER-103", key)
 
+    def test_citation_supported_dropped_hyphens_but_not_wrong_digits(self):
+        doc = "See (9-ER2042) and (5ER-862) and 776 F. Supp. 1422, 1426 and 1-ER-106–07."
+        key = cite_key(doc)
+        assert citation_supported("9-ER-2042", key)  # PDF dropped a hyphen
+        assert citation_supported("5-ER-862", key)
+        assert not citation_supported("776 F. Supp. 1422, 1425", key)  # wrong pincite stays flagged
+        assert not citation_supported("1-ER-107", key)  # range expansion stays flagged
+
 
 class TestValidateExtraction:
     def test_clean_extraction_passes(self):

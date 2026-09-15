@@ -155,6 +155,8 @@ class TestExtractor:
         assert ex.provenance["input_tokens"] == 1000
         assert ex.provenance["cost_usd"] == pytest.approx((1000 * 2 + 200 * 10) / 1e6)
         assert ex.provenance["doc_truncated"] is False
+        assert ex.provenance["anchors"]["start"].startswith("On January 1")
+        assert ex.provenance["anchors"]["has_facts"] is True
         assert validate_extraction(ex, DOC).ok
 
     def test_request_shape(self):

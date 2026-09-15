@@ -6,7 +6,7 @@ Checks (all pure, no network):
   span_text_matches   facts_span.text == doc_text[start:end]
   facts_nonempty      a non-empty facts span exists (when required)
   citation_fidelity   every emitted case/record citation occurs verbatim in doc_text
-                      (ignoring whitespace and dash/quote glyphs) — the anti-hallucination gate
+                      (ignoring whitespace, hyphens/dashes and quote glyphs) — the anti-hallucination gate
   dates_parseable     every key_events[].date parses with an accepted format
 
 Flags are stable strings so the eval harness can count them (C6/C8).
@@ -65,13 +65,15 @@ _DASH_QUOTE_MAP = str.maketrans({"‘": "'", "’": "'", "“": '"', "”": '"',
 
 
 def cite_key(s: str) -> str:
-    """Canonical form for citation fidelity: no whitespace at all, ASCII dashes/quotes.
+    """Canonical form for citation fidelity: no whitespace, no hyphens/dashes, ASCII quotes.
 
-    PDF text carries hyphen-break artifacts ("1- ER-102") and typographic dashes
-    ("1-ER-106–07"); a model that writes "1-ER-102" has still copied the cite.
-    Characters and their order are otherwise unchanged, so this stays a verbatim test.
+    PDF text carries hyphen-break artifacts ("1- ER-102"), typographic dashes
+    ("1-ER-106–07") and dropped hyphens ("9-ER2042", "5ER-862"); a model that writes
+    the canonical "9-ER-2042" has still copied the cite. Letters, digits and their
+    order are unchanged, so this stays a verbatim test: "1-ER-107" does not match
+    "1-ER-106-07", and a wrong pincite ("1425" vs "1426") is still caught.
     """
-    return _WS.sub("", s.translate(_DASH_QUOTE_MAP))
+    return _WS.sub("", s.translate(_DASH_QUOTE_MAP)).replace("-", "")
 
 
 def citation_supported(cite: str, doc_text_key: str) -> bool:

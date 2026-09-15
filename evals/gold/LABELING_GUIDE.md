@@ -60,6 +60,12 @@ Rate the span as extracted. Do not let a good boundary correction upgrade the ra
   gold span = the **first** contiguous block; note `split_facts`.
 - Reply briefs with a short "Statement" that mostly rebuts: `has_facts = yes` only if it narrates events; else
   `has_facts = no`, note `reply_no_narrative`.
+- **Reply briefs, amicus briefs, declarations/appendices, motion replies** (the first LLM run flags ~27 of the
+  100 audit docs as such): `has_facts = no` unless there is a genuine narrative section (Statement of Facts /
+  Background / Statement of the Case). An argumentative INTRODUCTION or an "Interest of Amici" section is
+  not a facts section. Rate the rules span `incorrect` when it is a fallback slice of such a document.
+- Attached opinions, reports and recommendations, or exhibits inside a filing are **not** the brief's facts
+  section (`has_facts = no`, note `attachment_only`), unless the filing itself is the brief.
 - When the rules span is off by only the heading line or one sentence at an edge, still record the corrected
   boundaries (cheap, and it feeds the IoU metric), but rate **correct**.
 - Never widen a span to "be safe". The eval rewards precision as much as recall.

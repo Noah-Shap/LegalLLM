@@ -322,6 +322,12 @@ class LlmExtractor:
         notes = list(wire.notes)
         if truncated:
             notes.append("doc_truncated_to_window")
+        # Keep the raw anchors so anchor failures can be diagnosed from the run cache.
+        provenance["anchors"] = {
+            "start": wire.facts_start_anchor,
+            "end": wire.facts_end_anchor,
+            "has_facts": wire.has_facts,
+        }
         span: FactsSpan | None = None
         if wire.has_facts:
             span, loc_notes = locate_span(doc_text, wire.facts_start_anchor, wire.facts_end_anchor)
