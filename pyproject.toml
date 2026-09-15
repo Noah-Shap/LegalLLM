@@ -26,6 +26,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+label = [
+    "streamlit>=1.30",
+]
 dense = [
     "sentence-transformers>=3.0",
 ]
@@ -42,6 +45,7 @@ dev = [
 legallm = "legallm.cli:main"
 legallm-eval = "legallm.eval_cli:main"
 legallm-extract = "legallm.single_doc:main"
+legallm-gold = "legallm.gold:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

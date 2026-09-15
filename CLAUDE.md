@@ -32,6 +32,8 @@ converted into a deployed LLM extraction app with a disciplined eval loop (Phase
   `single_doc.py` (one PDF/text → extraction + validation; extractor registry for LLM methods).
   `llm_extractor.py` (C2, Sonnet 5, anchor-based spans, provenance), `prompts.py` (versioned prompts),
   `claude_cli.py` (headless `claude -p` transport; strips API key, runs in an empty temp dir).
+  `gold.py` + `labeler_app.py` (C5 gold manifest, verification, Streamlit labeler).
+- `evals/gold/` — tracked gold labels (ids + offsets only) and `LABELING_GUIDE.md`.
 - `tests/` — pytest, all offline (mock `requests`; PDFs built with PyMuPDF in tmp_path).
 - `data/` — gitignored; see `data/README.md`. Primary build: `data/processed/facts_dataset_2k.parquet`.
 - `reports/` — eval reports and the 100-doc gold audit set (unrated).
@@ -50,6 +52,7 @@ legallm-eval --parquet data/processed/facts_dataset_2k.parquet --baselines popul
 legallm-extract data/raw/pdfs/<id>.pdf [--json --out out.json] [--method rules_v2]   # single doc, offline
 legallm-extract <pdf> --method llm-v1 --backend claude-cli   # Sonnet 5 via headless claude -p (subscription, no API credits)
 legallm-extract <pdf> --method llm-v1                        # same via Messages API (needs funded ANTHROPIC_API_KEY)
+legallm-gold stats | verify | label                          # gold set (evals/gold/gold_v1.jsonl); label = Streamlit UI
 ```
 
 ## Environment

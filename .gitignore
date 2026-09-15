@@ -22,6 +22,7 @@ pdfs/
 *.parquet
 *.jsonl
 !tests/**/*.jsonl
+!evals/**/*.jsonl
 *.log
 logs/*.log
 
