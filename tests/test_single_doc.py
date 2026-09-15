@@ -154,8 +154,8 @@ class TestCli:
             def __call__(self, doc_text, doc_type_id="UNKNOWN"):
                 raise mod.LlmExtractionError("API error 400: no credits")
 
-        monkeypatch.setattr(mod, "_default", Boom())
+        monkeypatch.setitem(mod._extractors, "v2", Boom())
         p = tmp_path / "brief.txt"
         p.write_text(sample_brief_text, encoding="utf-8")
-        assert main([str(p), "--method", "llm-v1"]) == 2
+        assert main([str(p), "--method", "llm-v2"]) == 2
         assert "no credits" in capsys.readouterr().err

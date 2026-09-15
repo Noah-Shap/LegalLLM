@@ -143,14 +143,15 @@ class TestExtractor:
         ex_fn, fm = _extractor()
         ex = ex_fn(DOC, "DISTRICT_COURT")
         assert isinstance(ex, FactsExtraction)
-        assert ex.extractor_version == "llm-v1"
+        assert ex.extractor_version == "llm-v2"  # default prompt version
         assert ex.doc_type_id == "DISTRICT_COURT"
         assert ex.facts_span is not None and DOC[ex.facts_span.start : ex.facts_span.end] == ex.facts_span.text
         assert ex.facts_span.text.startswith("On January 1") and ex.facts_span.text.endswith("timely appealed.")
         assert ex.parties == ["Appellant", "Acme Corp."]
         assert ex.key_events[1].date is None
         assert ex.provenance["model_id"] == DEFAULT_MODEL
-        assert ex.provenance["prompt_version"] == "v1"
+        assert ex.provenance["prompt_version"] == "v2"
+        assert ex.provenance["retries"] == 0
         assert len(ex.provenance["prompt_sha"]) == 16
         assert ex.provenance["input_tokens"] == 1000
         assert ex.provenance["cost_usd"] == pytest.approx((1000 * 2 + 200 * 10) / 1e6)
@@ -237,7 +238,9 @@ class TestRegistry:
         import legallm.llm_extractor as mod
 
         fm = FakeMessages(_wire())
-        monkeypatch.setattr(mod, "_default", LlmExtractor(client=SimpleNamespace(messages=fm)))
+        monkeypatch.setitem(
+            mod._extractors, "v1", LlmExtractor(LlmConfig(prompt_version="v1"), client=SimpleNamespace(messages=fm))
+        )
         r = extract_from_text(DOC, method="llm-v1")
         assert r.extraction.extractor_version == "llm-v1"
         assert r.validation.ok, r.validation.flags

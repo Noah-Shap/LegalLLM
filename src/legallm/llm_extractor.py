@@ -34,7 +34,7 @@ from typing import Any
 
 from legallm.claude_cli import BACKEND_NAME as CLI_BACKEND
 from legallm.claude_cli import ClaudeCliClient, ClaudeCliError
-from legallm.prompts import FACTS_SYSTEM_V1, FACTS_USER_V1, PROMPT_VERSION
+from legallm.prompts import PROMPT_VERSION, PROMPT_VERSIONS, PROMPTS
 from legallm.schema import FactsExtraction, FactsSpan, LlmFactsOutput, llm_output_json_schema
 from legallm.validators import parse_payload
 
@@ -106,20 +106,55 @@ def find_anchor(doc_text: str, anchor: str, *, start_at: int = 0) -> tuple[int, 
     return s, e
 
 
+RELAX_SIZES = (8, 6, 4)  # word counts tried when a full anchor is not found (L2 in the taxonomy)
+
+
+def _relaxed(anchor: str, n: int, *, keep_head: bool) -> str:
+    words = anchor.split()
+    if len(words) <= n:
+        return ""
+    return " ".join(words[:n] if keep_head else words[-n:])
+
+
+def find_anchor_relaxed(
+    doc_text: str, anchor: str, *, keep_head: bool, start_at: int = 0
+) -> tuple[tuple[int, int] | None, bool]:
+    """Exact/tolerant match first; then progressively shorter prefixes (start) or suffixes (end).
+
+    Returns ((start, end) or None, relaxed). A relaxed match keeps the matched fragment's
+    boundary on the side that matters (the head of a start anchor, the tail of an end anchor).
+    """
+    hit = find_anchor(doc_text, anchor, start_at=start_at)
+    if hit is not None:
+        return hit, False
+    for n in RELAX_SIZES:
+        frag = _relaxed(anchor, n, keep_head=keep_head)
+        if not frag:
+            continue
+        hit = find_anchor(doc_text, frag, start_at=start_at)
+        if hit is not None:
+            return hit, True
+    return None, False
+
+
 def locate_span(doc_text: str, start_anchor: str | None, end_anchor: str | None) -> tuple[FactsSpan | None, list[str]]:
     """Build a FactsSpan from the model's anchors; return (span_or_None, notes)."""
     notes: list[str] = []
     if not start_anchor or not end_anchor:
         return None, ["anchor_missing"]
-    s = find_anchor(doc_text, start_anchor)
+    s, s_relaxed = find_anchor_relaxed(doc_text, start_anchor, keep_head=True)
     if s is None:
         return None, ["start_anchor_not_found"]
-    e = find_anchor(doc_text, end_anchor, start_at=s[0])
+    if s_relaxed:
+        notes.append("start_anchor_relaxed")
+    e, e_relaxed = find_anchor_relaxed(doc_text, end_anchor, keep_head=False, start_at=s[0])
     if e is None:
         # End anchor may legitimately precede the start anchor's *end* if they overlap; try from doc start.
-        e = find_anchor(doc_text, end_anchor)
+        e, e_relaxed = find_anchor_relaxed(doc_text, end_anchor, keep_head=False)
         if e is None:
-            return None, ["end_anchor_not_found"]
+            return None, notes + ["end_anchor_not_found"]
+    if e_relaxed:
+        notes.append("end_anchor_relaxed")
     start, end = s[0], e[1]
     if end <= start:
         return None, ["anchor_order_invalid"]
@@ -173,13 +208,25 @@ class LlmConfig:
     max_doc_chars: int = 400_000  # ~100k tokens; head window beyond this
     timeout_s: float = 180.0
     max_retries: int = 3
-    system_prompt: str = FACTS_SYSTEM_V1
-    user_template: str = FACTS_USER_V1
-    prompt_version: str = PROMPT_VERSION
+    prompt_version: str = PROMPT_VERSION  # key into prompts.PROMPTS ("v1", "v2", ...)
+    system_prompt: str | None = None  # override; default = PROMPTS[prompt_version]
+    user_template: str | None = None
 
     @property
     def extractor_version(self) -> str:
         return f"llm-{self.prompt_version}"
+
+    @property
+    def resolved_system_prompt(self) -> str:
+        if self.system_prompt is not None:
+            return self.system_prompt
+        return PROMPTS[self.prompt_version][0]
+
+    @property
+    def resolved_user_template(self) -> str:
+        if self.user_template is not None:
+            return self.user_template
+        return PROMPTS[self.prompt_version][1]
 
 
 class LlmExtractor:
@@ -189,15 +236,18 @@ class LlmExtractor:
         self.config = config or LlmConfig()
         self._client = client
         self.schema = llm_output_json_schema()
+        if self.config.prompt_version not in PROMPTS and self.config.system_prompt is None:
+            raise LlmExtractionError(f"unknown prompt version {self.config.prompt_version!r}; known: {PROMPT_VERSIONS}")
         self.prompt_sha = hashlib.sha256(
             (
-                self.config.system_prompt
+                self.config.resolved_system_prompt
                 + "\n"
-                + self.config.user_template
+                + self.config.resolved_user_template
                 + "\n"
                 + json.dumps(self.schema, sort_keys=True)
             ).encode("utf-8")
         ).hexdigest()[:16]
+        self._last_retries = 0
 
     @property
     def client(self) -> Any:
@@ -221,16 +271,17 @@ class LlmExtractor:
     # -- request ----------------------------------------------------------
     def build_request(self, doc_text: str, doc_type_id: str) -> tuple[dict[str, Any], bool]:
         window, truncated = select_window(doc_text, self.config.max_doc_chars)
-        user = self.config.user_template.format(
+        user = self.config.resolved_user_template.format(
             doc_type_id=doc_type_id,
             n_chars=len(doc_text),
             truncated_attr=' truncated="true"' if truncated else "",
             document=window,
         )
+        system_text = self.config.resolved_system_prompt
         req: dict[str, Any] = {
             "model": self.config.model,
             "max_tokens": self.config.max_tokens,
-            "system": [{"type": "text", "text": self.config.system_prompt, "cache_control": {"type": "ephemeral"}}],
+            "system": [{"type": "text", "text": system_text, "cache_control": {"type": "ephemeral"}}],
             "messages": [{"role": "user", "content": user}],
             "output_config": {"format": {"type": "json_schema", "schema": self.schema}, "effort": self.config.effort},
         }
@@ -238,11 +289,19 @@ class LlmExtractor:
 
     def _call(self, req: dict[str, Any]) -> Any:
         client = self.client
+        self._last_retries = 0
         if isinstance(client, ClaudeCliClient):
-            try:
-                return client.messages.create(**req)
-            except ClaudeCliError as e:
-                raise LlmExtractionError(f"claude-cli: {e}") from e
+            # L5 (taxonomy): the CLI occasionally returns is_error with no detail, or prose without the
+            # structured-output call; both cleared on an immediate retry in the first 120-doc run.
+            for attempt in range(2):
+                try:
+                    return client.messages.create(**req)
+                except ClaudeCliError as e:
+                    transient = "reported an error" in str(e) or "no structured_output" in str(e)
+                    if attempt == 0 and transient:
+                        self._last_retries += 1
+                        continue
+                    raise LlmExtractionError(f"claude-cli: {e}") from e
 
         import anthropic
 
@@ -282,6 +341,7 @@ class LlmExtractor:
             "latency_s": round(latency, 3),
             "doc_chars": len(doc_text),
             "doc_truncated": truncated,
+            "retries": self._last_retries,
         }
         usage = getattr(resp, "usage", None)
         if usage is not None:
@@ -352,26 +412,55 @@ class LlmExtractor:
         return ex
 
 
-_default: LlmExtractor | None = None
+# ---------------------------------------------------------------------------
+# Registry: one lazily-built extractor per prompt version, shared config overrides
+# ---------------------------------------------------------------------------
+
+_extractors: dict[str, LlmExtractor] = {}
+_overrides: dict[str, Any] = {}
+
+
+def method_version(method: str) -> str:
+    """'llm-v2' -> 'v2'."""
+    if not method.startswith("llm-"):
+        raise KeyError(f"not an llm method: {method!r}")
+    return method[4:]
+
+
+def get_extractor(version: str = PROMPT_VERSION) -> LlmExtractor:
+    """The shared extractor for a prompt version, built with the current overrides on first use."""
+    if version not in PROMPT_VERSIONS:
+        raise KeyError(f"unknown prompt version {version!r}; known: {PROMPT_VERSIONS}")
+    if version not in _extractors:
+        _extractors[version] = LlmExtractor(LlmConfig(prompt_version=version, **_overrides))
+    return _extractors[version]
 
 
 def default_extractor() -> LlmExtractor:
-    global _default
-    if _default is None:
-        _default = LlmExtractor()
-    return _default
+    return get_extractor(PROMPT_VERSION)
 
 
 def configure_default(**overrides: Any) -> LlmExtractor:
-    """Replace the default extractor with one built from ``LlmConfig(**overrides)``."""
-    global _default
-    _default = LlmExtractor(LlmConfig(**overrides))
-    return _default
+    """Set config overrides (e.g. backend='claude-cli', effort='high') for every prompt version."""
+    _overrides.clear()
+    _overrides.update(overrides)
+    _extractors.clear()
+    return default_extractor()
 
 
-def extract_llm(doc_text: str, doc_type_id: str = "UNKNOWN") -> FactsExtraction:
-    """Registry entry point: default Sonnet 5 extractor, prompt v1."""
-    return default_extractor()(doc_text, doc_type_id)
+def extract_llm(doc_text: str, doc_type_id: str = "UNKNOWN", *, version: str = PROMPT_VERSION) -> FactsExtraction:
+    """Registry entry point: Sonnet 5 extractor at the given prompt version."""
+    return get_extractor(version)(doc_text, doc_type_id)
+
+
+def llm_method(version: str) -> Any:
+    """Extractor callable ``(doc_text, doc_type_id)`` bound to one prompt version, for the method registry."""
+
+    def _fn(doc_text: str, doc_type_id: str = "UNKNOWN") -> FactsExtraction:
+        return extract_llm(doc_text, doc_type_id, version=version)
+
+    _fn.__name__ = f"extract_llm_{version}"
+    return _fn
 
 
 _WORD = re.compile(r"\S+")

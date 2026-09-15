@@ -21,15 +21,17 @@ from pathlib import Path
 from typing import Any
 
 from legallm.baseline_adapter import RULES_VERSION, extract_rules, preprocess_text
-from legallm.llm_extractor import EXTRACTOR_VERSION as LLM_VERSION
-from legallm.llm_extractor import LlmExtractionError, extract_llm
+from legallm.llm_extractor import PROMPT_VERSIONS, LlmExtractionError, llm_method
 from legallm.pipeline import doc_needs_ocr, extract_text_best, get_pdf_page_count_fast, normalize_text
 from legallm.schema import FactsExtraction
 from legallm.validators import ValidationReport, validate_extraction
 
 Extractor = Callable[[str, str], FactsExtraction]
 
-EXTRACTORS: dict[str, Extractor] = {RULES_VERSION: extract_rules, LLM_VERSION: extract_llm}
+EXTRACTORS: dict[str, Extractor] = {
+    RULES_VERSION: extract_rules,
+    **{f"llm-{v}": llm_method(v) for v in PROMPT_VERSIONS},  # llm-v1, llm-v2, ...
+}
 DEFAULT_METHOD = RULES_VERSION
 DEFAULT_WARNINGS_LOG = Path("logs/pdf_parse_warnings.log")
 

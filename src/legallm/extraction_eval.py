@@ -189,14 +189,17 @@ def evaluate_doc(
 
 def method_config_sha(method: str) -> str:
     """Stable hash of everything that changes a method's output (prompt, model, effort, backend)."""
-    if method.startswith("llm"):
-        from legallm.llm_extractor import default_extractor
+    payload = method
+    if method.startswith("llm-"):
+        from legallm.llm_extractor import get_extractor, method_version
 
-        ex = default_extractor()
-        cfg = ex.config
-        payload = f"{method}|{ex.prompt_sha}|{cfg.model}|{cfg.effort}|{cfg.backend}|{cfg.max_doc_chars}"
-    else:
-        payload = method
+        try:
+            ex = get_extractor(method_version(method))
+        except KeyError:  # a custom extractor registered under an llm-* name (tests, experiments)
+            ex = None
+        if ex is not None:
+            cfg = ex.config
+            payload = f"{method}|{ex.prompt_sha}|{cfg.model}|{cfg.effort}|{cfg.backend}|{cfg.max_doc_chars}"
     return hashlib.sha256(payload.encode()).hexdigest()[:12]
 
 
