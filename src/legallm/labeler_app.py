@@ -84,9 +84,30 @@ def main() -> None:
             f"boundary corrected: {s['boundary_corrected']} (low/med {s['boundary_corrected_low_medium']}) · "
             f"ratings: {s['ratings']}"
         )
-        flt = st.radio("Show", ["pending", "all", "labeled", "skipped"], horizontal=True)
+        review_path = args.gold.with_name("review_set_v1.txt")
+        review_ids: list[str] = []
+        if review_path.exists():
+            review_ids = [ln.strip() for ln in review_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+        choices = ["pending", "all", "labeled", "judge-labeled", "skipped"] + (["review set"] if review_ids else [])
+        flt = st.radio("Show", choices, horizontal=True)
         src = st.radio("Source", ["all", "audit_set", "no_facts_span"], horizontal=True)
-        visible = [r for r in records if (flt == "all" or r.status == flt) and (src == "all" or r.source == src)]
+
+        def _show(r: GoldRecord) -> bool:
+            if flt == "all":
+                ok = True
+            elif flt == "judge-labeled":
+                ok = r.status == "labeled" and not r.is_human_labeled
+            elif flt == "review set":
+                ok = r.gold_id in review_ids and not r.is_human_labeled
+            else:
+                ok = r.status == flt
+            return ok and (src == "all" or r.source == src)
+
+        visible = [r for r in records if _show(r)]
+        if flt == "review set":
+            visible.sort(key=lambda r: review_ids.index(r.gold_id))
+            n_done = sum(1 for r in records if r.gold_id in review_ids and r.is_human_labeled)
+            st.caption(f"review set: {n_done}/{len(review_ids)} reviewed by you")
         if not visible:
             st.success("Nothing left in this filter.")
             st.stop()
