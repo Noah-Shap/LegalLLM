@@ -1,0 +1,477 @@
+{
+  "meta": {
+    "run_id": "judge-v1_20260915-153046_975e61",
+    "model": "claude-opus-5",
+    "version": "judge-v1",
+    "prompt_sha": "bb1319cfa5d2863e",
+    "effort": "high",
+    "backend": "claude-cli",
+    "candidates_run": "evals\\runs\\llm-v2-all_20260915-040449_c762da"
+  },
+  "summary": {
+    "n": 120,
+    "n_ok": 120,
+    "n_errors": 0,
+    "document_kind": {
+      "merits_brief": 83,
+      "reply_brief": 17,
+      "amicus_brief": 8,
+      "appendix_or_exhibits": 2,
+      "motion_or_opposition": 1,
+      "declaration": 1,
+      "clerk_letter_or_notice": 5,
+      "docket_sheet_or_form": 2,
+      "court_order_or_opinion": 1
+    },
+    "is_brief_with_facts": {
+      "True": 87,
+      "False": 33
+    },
+    "rating_a": {
+      "audit_set": {
+        "correct": 38,
+        "incorrect": 41,
+        "partially_correct": 21
+      },
+      "no_facts_span": {
+        "incorrect": 7,
+        "correct": 13
+      }
+    },
+    "rating_b": {
+      "audit_set": {
+        "correct": 91,
+        "partially_correct": 1,
+        "incorrect": 8
+      },
+      "no_facts_span": {
+        "correct": 19,
+        "partially_correct": 1
+      }
+    },
+    "issues_a": {
+      "starts_early": 39,
+      "fine": 35,
+      "includes_cover_or_toc": 34,
+      "no_facts_section_exists": 25,
+      "wrong_section": 20,
+      "includes_argument": 19,
+      "ends_late": 13,
+      "includes_summary_of_argument": 12,
+      "span_empty": 7,
+      "attachment_used": 6,
+      "ends_early": 5,
+      "not_a_brief": 4,
+      "includes_addendum_or_statutes": 3,
+      "missing_subsection": 1
+    },
+    "issues_b": {
+      "fine": 100,
+      "no_facts_section_exists": 9,
+      "span_empty": 8,
+      "ends_early": 3,
+      "starts_early": 2,
+      "starts_late": 1,
+      "includes_argument": 1
+    },
+    "preferred": {
+      "B": 90,
+      "tie": 19,
+      "A": 11
+    },
+    "confidence": {
+      "high": 119,
+      "medium": 1
+    },
+    "corrected_spans": 58,
+    "corrected_unlocatable": 1,
+    "cost_usd_total": 128.4619,
+    "latency_s_mean": 16.7,
+    "glaring": [
+      {
+        "gold_id": "g002",
+        "source": "audit_set",
+        "kind": "reply_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "This appellant reply brief has no facts section \u2014 only cover, TOC/TOA, an argumentative introduction, argument, and conclusion \u2014 so B's empty span is right while A's table-of-authorities-plus-introduction span is wrong."
+      },
+      {
+        "gold_id": "g003",
+        "source": "audit_set",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "Candidate B correctly isolates the Statement of the Case through the Statement of Facts, while Candidate A captures front matter (certificate, tables, jurisdiction) instead of the facts."
+      },
+      {
+        "gold_id": "g008",
+        "source": "audit_set",
+        "kind": "appendix_or_exhibits",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "The document is an appendix/index of designated appeal documents (docket entries plus attached motions, orders and exhibits), so no facts section exists; A grabbed an HCD \"Statement of Facts\" form from an exhibit, while B correctly returned nothing."
+      },
+      {
+        "gold_id": "g013",
+        "source": "audit_set",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "The facts section is \"II. PROCEDURAL HISTORY\" through subsection D, which B captures precisely, while A sweeps in front matter, TOC/TOA, introduction and several pages of argument."
+      },
+      {
+        "gold_id": "g015",
+        "source": "audit_set",
+        "kind": "reply_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "The reply brief does contain a genuine factual/procedural background section, which candidate B captures exactly while candidate A grabs the TOC and record-abbreviation boilerplate instead."
+      },
+      {
+        "gold_id": "g017",
+        "source": "audit_set",
+        "kind": "reply_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "This federal appellants' reply brief goes from table of authorities straight into an introduction/summary of argument and then argument, so no facts section exists; B's empty span is right and A's span is argument plus TOA."
+      },
+      {
+        "gold_id": "g020",
+        "source": "audit_set",
+        "kind": "reply_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "The only narrative content is the reply brief's PROCEDURAL HISTORY section, which B isolates exactly while A over-extends through the remaining argument sections."
+      },
+      {
+        "gold_id": "g024",
+        "source": "audit_set",
+        "kind": "reply_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "This appellants' reply brief has no statement of facts or background section, so B's empty span is right while A captured only front matter."
+      },
+      {
+        "gold_id": "g028",
+        "source": "audit_set",
+        "kind": "amicus_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "This members-of-Congress amicus brief has no facts or background section, so B's empty result is right and A's span (TOA plus identity of amici plus summary of argument) is wrong."
+      },
+      {
+        "gold_id": "g031",
+        "source": "audit_set",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "B isolates the Statement of the Case correctly; A sweeps in the Table of Authorities, jurisdictional statement, issues presented, and Summary of Arguments."
+      },
+      {
+        "gold_id": "g036",
+        "source": "audit_set",
+        "kind": "amicus_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "This amicus brief has no facts section (only interest of amicus, summary of argument, argument), so B's empty result is right and A's span of TOA/glossary/summary-of-argument is wrong."
+      },
+      {
+        "gold_id": "g038",
+        "source": "audit_set",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "Candidate A grabbed the cover page and TOC instead of the facts, while candidate B correctly spans the Statement of the Case through the end of the Procedural History."
+      },
+      {
+        "gold_id": "g039",
+        "source": "audit_set",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "The facts section is the brief's short STATEMENT OF CASE; B captures it nearly in full (cutting its last sentence short), while A is a 20k-character slice spanning cover, TOC, jurisdiction, summary and argument."
+      },
+      {
+        "gold_id": "g040",
+        "source": "audit_set",
+        "kind": "reply_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "This reply brief has no facts section \u2014 its preliminary statement is argument \u2014 so B's empty span is right and A captured argument."
+      },
+      {
+        "gold_id": "g042",
+        "source": "audit_set",
+        "kind": "reply_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "This government reply brief contains no facts section \u2014 only an argumentative introduction/summary of argument and argument \u2014 so no span should be extracted; A wrongly selected Argument Point III."
+      },
+      {
+        "gold_id": "g046",
+        "source": "audit_set",
+        "kind": "reply_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "This reply brief has no facts section \u2014 its introduction is argumentative \u2014 so A's span of disclosure/TOC/introduction is wrong and B's empty result is right."
+      },
+      {
+        "gold_id": "g049",
+        "source": "audit_set",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "B captures the Statement of the Case exactly (Background through Prior Proceedings), while A starts in the table of authorities and runs past the facts into the summary of argument and standard of review."
+      },
+      {
+        "gold_id": "g051",
+        "source": "audit_set",
+        "kind": "reply_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "This is a reply brief that goes from the table of authorities straight into an argumentative introduction and then the argument, so no facts section exists; A wrongly captured the TOA plus introduction, while B's empty span is correct."
+      },
+      {
+        "gold_id": "g059",
+        "source": "audit_set",
+        "kind": "motion_or_opposition",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "This is a reply supporting an emergency motion to expedite with only an argumentative introduction and argument, so no facts section exists; A's cover-page-plus-introduction span is wrong and B's empty result is right."
+      },
+      {
+        "gold_id": "g061",
+        "source": "audit_set",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "Candidate B correctly isolates the Statement of the Case (subsections A\u2013F), while candidate A captures only front matter, the introduction, and jurisdictional/statutory sections."
+      },
+      {
+        "gold_id": "g063",
+        "source": "audit_set",
+        "kind": "reply_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "This appellant reply brief contains only an argumentative Preliminary Statement followed by Argument and no statement of facts, so B's empty span is right and A's capture of the Preliminary Statement is argument."
+      },
+      {
+        "gold_id": "g065",
+        "source": "audit_set",
+        "kind": "reply_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "This reply brief has no facts section, so B's empty result is right and A's slice of the related-cases/certificate boilerplate is wrong."
+      },
+      {
+        "gold_id": "g066",
+        "source": "audit_set",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "Candidate B correctly spans the brief's Statement of the Case through the end of the Statement of Facts, while Candidate A extracts an attached patent document instead."
+      },
+      {
+        "gold_id": "g068",
+        "source": "audit_set",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "Candidate B correctly isolates Section III (Statement of the Case); candidate A instead captured front matter \u2014 the disclosure statement, TOC/TOA, and jurisdictional statement."
+      },
+      {
+        "gold_id": "g069",
+        "source": "audit_set",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "B correctly isolates the Statement of the Case (facts plus procedural history), while A grabs the argumentative preliminary and jurisdictional statements instead."
+      },
+      {
+        "gold_id": "g070",
+        "source": "audit_set",
+        "kind": "amicus_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "This amicus brief has no facts section, so B's empty result is right and A's span (table of authorities, interest statement, and summary of argument) is wrong."
+      },
+      {
+        "gold_id": "g072",
+        "source": "audit_set",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "Candidate B exactly captures the Statement of the Case (factual/procedural background through the district court's order), while Candidate A starts far too early and is dominated by the tables of contents and authorities."
+      },
+      {
+        "gold_id": "g073",
+        "source": "audit_set",
+        "kind": "amicus_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "This amicus brief contains only Interests of Amici, Argument, and an exhibit list of judges, so no facts section exists; B's empty span is right and A's slice of the table of authorities plus interests statement is wrong."
+      },
+      {
+        "gold_id": "g075",
+        "source": "audit_set",
+        "kind": "appendix_or_exhibits",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "The document is an abbreviated record on appeal (clerk's certificate, docket sheet, memorandum and order, final judgment, notice of appeal) with no brief, so the correct output is no span; A wrongly took the opinion's procedural history."
+      },
+      {
+        "gold_id": "g076",
+        "source": "audit_set",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "Candidate A captured the table of contents rather than the facts, while candidate B correctly spans the entire STATEMENT OF THE CASE narrative."
+      },
+      {
+        "gold_id": "g077",
+        "source": "audit_set",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "A grabbed only boilerplate disclosure forms and is incorrect; B correctly captured the Statement of the Case narrative, starting slightly late by skipping the legal-framework subsection A."
+      },
+      {
+        "gold_id": "g079",
+        "source": "audit_set",
+        "kind": "amicus_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "This amicus brief has only interest of amici, an argumentative introduction, and argument \u2014 no facts section \u2014 so B's empty span is right while A's table-of-authorities-plus-introduction slice is wrong."
+      },
+      {
+        "gold_id": "g081",
+        "source": "audit_set",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "A grabbed the cover page and TOC instead of the facts, while B correctly spans the Statement of the Case from the medical-condition subsection through the preliminary-injunction denial."
+      },
+      {
+        "gold_id": "g083",
+        "source": "audit_set",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "B correctly isolates the Statement of the Case narrative, while A starts in the table of contents and runs through the standard of review, so it is dominated by non-facts content."
+      },
+      {
+        "gold_id": "g084",
+        "source": "audit_set",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "The pro se emergency appeal brief has no facts or statement-of-the-case section, so B's empty span is right while A wrongly captured the attached injunction order and service certificate."
+      },
+      {
+        "gold_id": "g092",
+        "source": "audit_set",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "incorrect",
+        "summary": "The facts section runs from the Statement of the Case through numbered paragraph 27 and ends before Standard of Review; A starts far too early (oral argument statement, TOC, table of citations, issues) and B found nothing."
+      },
+      {
+        "gold_id": "g093",
+        "source": "audit_set",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "Candidate A grabbed a slice of the table of contents, while candidate B correctly isolates the STATEMENT OF THE CASE body from \"Chastain appeals a judgment\" through \"Chastain is serving his sentence.\""
+      },
+      {
+        "gold_id": "g094",
+        "source": "audit_set",
+        "kind": "reply_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "This FDEM reply brief has no facts or background section \u2014 only a TOC/TOA, an argumentative introduction, and the argument \u2014 so B's empty span is right and A's span (table of authorities plus the argumentative introduction) is wrong."
+      },
+      {
+        "gold_id": "g096",
+        "source": "audit_set",
+        "kind": "amicus_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "The brief's only factual narrative is the Introduction; B captures it correctly, while A grabbed the disclosure statement and table of contents."
+      },
+      {
+        "gold_id": "g098",
+        "source": "audit_set",
+        "kind": "declaration",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "The document is a declaration of counsel attaching exhibits (declarations, webpages, a GAO report, a hearing transcript), not a brief, so no facts section exists; A wrongly sliced text out of the attached GAO report while B correctly returned nothing."
+      },
+      {
+        "gold_id": "g099",
+        "source": "audit_set",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "The brief's facts are the pro se \"By way of introduction\" narrative (paragraphs 1-9), which B captures correctly, while A instead extracts pages of an attached estate accounting exhibit."
+      },
+      {
+        "gold_id": "f001",
+        "source": "no_facts_span",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "Candidate B correctly spans the combined Statement of the Case and Statement of Facts, while Candidate A found nothing despite a real facts section."
+      },
+      {
+        "gold_id": "f003",
+        "source": "no_facts_span",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "B captures the full STATEMENT OF THE CASE (facts plus procedural history) exactly; A returned nothing despite a facts section existing."
+      },
+      {
+        "gold_id": "f006",
+        "source": "no_facts_span",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "B correctly captures the full Statement of the Case; A returned nothing despite a facts section being present."
+      },
+      {
+        "gold_id": "f007",
+        "source": "no_facts_span",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "B correctly spans the Statement of the Case factual background but cuts off a few sentences before the SUMMARY OF ARGUMENT heading; A returned no span at all."
+      },
+      {
+        "gold_id": "f014",
+        "source": "no_facts_span",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "Candidate B correctly captures the entire Statement of the Case (both subsections) up to Summary of Argument, while Candidate A returned nothing."
+      },
+      {
+        "gold_id": "f018",
+        "source": "no_facts_span",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "correct",
+        "summary": "B correctly spans the Statement of the Case from the Appellant background through the citation of decisions, ending before Summary of the Argument; A found nothing."
+      },
+      {
+        "gold_id": "f019",
+        "source": "no_facts_span",
+        "kind": "merits_brief",
+        "A": "incorrect",
+        "B": "partially_correct",
+        "summary": "The facts section is the STATEMENT OF THE CASE (\u00b6\u00b616-26, subsections A and B) ending just before ARGUMENT; A found nothing, while B started early in the partly argumentative Preliminary Statement."
+      }
+    ]
+  }
+}

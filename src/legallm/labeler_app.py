@@ -42,6 +42,25 @@ def _load(path: Path) -> list[GoldRecord]:
     return cast(list[GoldRecord], st.session_state.records)
 
 
+def _save_one(path: Path, rec: GoldRecord) -> list[GoldRecord]:
+    """Write-through save: reload the file, replace this record, save, refresh the session copy.
+
+    Another process (legallm-gold prefill / accept-judge, a second labeler tab) may have changed
+    other records since this session loaded the file; rewriting from the session copy would
+    silently discard those changes.
+    """
+    fresh = load_gold(path)
+    for i, r in enumerate(fresh):
+        if r.gold_id == rec.gold_id:
+            fresh[i] = rec
+            break
+    else:
+        fresh.append(rec)
+    save_gold(fresh, path)
+    st.session_state.records = fresh
+    return fresh
+
+
 def _marked(doc: str, span: list[int] | None) -> str:
     if not span:
         return doc
@@ -148,7 +167,7 @@ def main() -> None:
                     notes=f"[accepted judge] {sug.get('summary', '')}",
                     labeler=args.labeler,
                 )
-                save_gold(records, args.gold)
+                _save_one(args.gold, rec)
                 st.toast(f"accepted judge suggestion for {rec.gold_id}")
                 if pos < len(vis_ids) - 1:
                     st.session_state.cur = vis_ids[pos + 1]
@@ -244,7 +263,7 @@ def main() -> None:
                 notes=notes,
                 labeler=args.labeler,
             )
-            save_gold(records, args.gold)
+            _save_one(args.gold, rec)
             st.toast(f"saved {rec.gold_id}")
             if pos < len(vis_ids) - 1:
                 st.session_state.cur = vis_ids[pos + 1]
@@ -254,7 +273,7 @@ def main() -> None:
     if b2.button("⏭ Skip", key="skip", use_container_width=True):
         rec.status = "skipped"
         rec.label.notes = notes
-        save_gold(records, args.gold)
+        _save_one(args.gold, rec)
         if pos < len(vis_ids) - 1:
             st.session_state.cur = vis_ids[pos + 1]
         st.rerun()

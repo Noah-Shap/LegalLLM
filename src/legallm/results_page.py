@@ -44,7 +44,14 @@ HEADLINE: list[tuple[str, Callable[[dict[str, Any]], str]]] = [
     ),
     ("docs with unsupported cites", lambda s: f"{s['docs_with_unsupported_cites']}/{s['n_docs_with_cites']}"),
     ("recovered span, failure stratum", lambda s: f"{_pct(s['recovered_span_rate'])} (n={s['failure_stratum_n']})"),
-    ("auto↔human rating agreement", lambda s: f"{_pct(s['auto_vs_human_agreement'])} (n={s['auto_vs_human_n']})"),
+    (
+        "IoU auto-rating ↔ label rating (label rates the rules span; rules_v2 row only)",
+        lambda s: (
+            f"{_pct(s['auto_vs_human_agreement'])} (n={s['auto_vs_human_n']})"
+            if s.get("method") == "rules_v2"
+            else "n/a"
+        ),
+    ),
     ("cost / doc", lambda s: _money(s["cost_usd_per_doc"])),
     ("latency / doc (mean)", lambda s: f"{_num(s['latency_s_mean'], 2)} s"),
 ]

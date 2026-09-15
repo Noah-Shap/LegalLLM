@@ -12,6 +12,8 @@ human-labeled documents the IoU column is computed on.
 
 ## Notes
 
+- **2026-09-15 · Opus 5 judge pass** (`evals/judge/judge-v1_20260915-153046_975e61`, taxonomy §F): rules_v2 rated correct on only 38/100 audit docs (41 incorrect); llm-v2 on 91/100. 33 documents have no facts section at all. If judge verdicts are taken as gold, llm-v2 IoU 0.928 vs rules 0.565; paired wins 73 / ties 37 / losses 8. Verdicts are attached to the gold set as suggestions; acceptance policy and the human overlap for κ are Noah's call.
+
 - **2026-09-15 · llm-v2** (taxonomy §E): fixed L1 on the docket sheet and L5; anchor relaxation rescued 9 spans and cut hard anchor failures 11→8; the has_facts gate now returns no-facts on all 8 non-briefs in the failure stratum. The citation instruction did not change the model's habit of expanding list/range cites, so the validator gained a second tier: *citation support* accepts a cite whose page numbers are printed near the same prefix; strict verbatim fidelity is still reported. **Drift measured:** 10 docs × 3 runs, 30/30 pairs IoU ≥ 0.999 — effectively deterministic at effort=medium. v1↔v2 span agreement median 1.0: the prompt change was surgical.
 
 - **2026-09-14 · llm-v1 first run, read with `evals/error_taxonomy.md` §D:** the LLM's lower span-found rate is

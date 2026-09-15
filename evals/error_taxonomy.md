@@ -1,4 +1,4 @@
-# Error taxonomy (C8) — v0.2, 2026-09-15 (llm-v1 and llm-v2 runs)
+# Error taxonomy (C8) — v0.3, 2026-09-15 (llm-v1, llm-v2, and the Opus 5 judge pass)
 
 Open-coded from (a) the rules_v2 notes histogram over the 120 gold documents and (b) a read of all 20
 `no_facts_span` failure documents (`f001`–`f020`), before any LLM numbers were in. Update this file every
@@ -85,3 +85,52 @@ What changed and what it did, class by class (same 120 docs, rules_v2 and llm-v1
 Aggregate: span found 65.8 % (v1 68.3 %) — the drop is entirely the 6 new `has_facts=false` verdicts, 3 of which are demonstrably right (g008, f010, f013); validator pass 48.3 % (v1 55.0 %) — driven by the +27 % citation volume meeting a strict check; rules↔v2 agreement 0.507 mean / 0.585 median (v1 0.478 / 0.442), 0.838 mean / 0.983 median where rules are `high`; **v1↔v2 agreement 0.813 mean, median 1.0, 92/120 docs ≥ 0.9** — the prompt change moved the documents it was aimed at and left the rest alone; cost $0.274/doc, 34 s/doc.
 
 Open for v3 (after labels): (a) L3 — either restrict `record_citations` to a stricter "as printed, no splitting" rule with an example, or accept expansion as desired behaviour and make *support* the headline metric; (b) the 8 residual L2 anchor failures; (c) f019 / A4 once labeled.
+
+## F. Opus 5 judge pass (`evals/judge/judge-v1_20260915-153046_975e61`, 120 docs, 0 errors, 16.7 s/doc, $128 CLI estimate — subscription-billed)
+
+Noah asked for a strong-model review before human labeling, on the grounds that the obvious mistakes do not need
+human nuance. The judge (D2, `claude-opus-5`, effort high) read every document with both candidate spans marked
+inline, classified the document, rated each candidate with the labeling rubric, coded the issues, and proposed
+corrected anchors. Consistency checks: 0 contradictions (never "correct" for an empty span where it says facts
+exist, or for a non-empty span where it says none exists); the 33 near-identical A/B spans all received identical
+ratings. Confidence was `high` on 119/120.
+
+**Document kinds:** merits brief 83 · reply brief 17 · amicus 8 · clerk letter 5 · appendix/exhibits 2 · docket
+sheet/form 2 · motion 1 · declaration 1 · court order 1. **No facts section: 33 docs** (25 in the audit set — up
+from the LLM's 17 — plus 8 in the failure stratum).
+
+**Ratings (rules_v2 / llm-v2):** audit set 38 correct · 21 partial · 41 incorrect / 91 · 1 · 8; failure stratum
+13 · 0 · 7 / 19 · 1 · 0. Preferred B on 90, tie 19, A 11.
+
+**Where the rules go wrong (issue codes on rules_v2):** starts_early 39, includes_cover_or_toc 34,
+no_facts_section_exists 25, wrong_section 20, includes_argument 19, ends_late 13, includes_summary_of_argument 12,
+span_empty 7, attachment_used 6, ends_early 5, not_a_brief 4, includes_addendum_or_statutes 3. Read together: the
+pre-ARGUMENT fallback and TOC bleed-in dominate, i.e. the same `fallback_pre_argument` / `toc_contamination` /
+`span_starts_very_early` notes from §B, now with a verdict attached. Rules rating by rules confidence: **high**
+37 / 16 / 8, **medium** 1 / 5 / 10, **low** 0 / 0 / 23 — every low-confidence span is wrong.
+
+**Where llm-v2 goes wrong:** span_empty 8 (the residual L2 anchor failures: g033, g034, g056, g067, g078, g080,
+g092, g097 — the judge located the facts section on 7 of them, so anchors exist), starts_early 2 (g029, f019),
+includes_argument 1, ends_early 3 (blemishes, still rated correct).
+
+**Corrected anchors:** located on 58 docs (1 unlocatable); 47 coincide with llm-v2's span (IoU ≥ 0.95), 7 fill
+llm-v2's empty spans, 3 overlap partially, 1 differs.
+
+**Preview of gold-referenced metrics if the judge's verdicts were accepted as labels (in memory, not applied):**
+
+| method | IoU vs judge-gold (mean / median) | IoU ≥ 0.9 | recovered span (failure stratum) | no-facts verdicts correct | paired vs rules |
+|---|---|---|---|---|---|
+| rules_v2 | 0.565 / 0.766 | 45.8 % | 0 % | 100 % (rules never emits a span on those) | — |
+| llm-v1 | 0.823 / 1.000 | 78.0 % | 85.7 % | 76.9 % | — |
+| llm-v2 | **0.928 / 1.000** | **91.5 %** | 85.7 % | 100 % | wins 73 / ties 37 / losses 8, mean ΔIoU +0.363 |
+
+By rules confidence, llm-v2 IoU is 0.905 (`high`), 0.861 (`medium`), 0.996 (`low`); rules_v2 is 0.811 / 0.307 /
+0.039. The IoU auto-rating (≥ 0.9 correct, ≥ 0.5 partial) agrees with the judge's rubric rating of the rules span
+on 92.9 % of 98 docs — the thresholds are usable.
+
+**Caveats.** (1) Judge and llm-v2 are both Claude models; a same-family preference is possible, and the judge's
+"corrected" anchors coincide with llm-v2's span 47 times out of 58. (2) The two human labels so far (g001, g002)
+agree with the judge on has_facts and, for g001, on the span to within one character, but Noah rated the rules
+span `partially_correct` where the judge said `correct` (the addendum sentence) — a rubric-boundary call. Judge
+verdicts are therefore held as **suggestions** (`legallm-gold prefill`) with an explicit accept policy and a
+separate `labeler="judge:…"` tag; human labels on an overlap of ≥ 30 docs are still required for κ.
