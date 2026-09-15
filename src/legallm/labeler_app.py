@@ -89,7 +89,11 @@ def main() -> None:
         if review_path.exists():
             review_ids = [ln.strip() for ln in review_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
         choices = ["pending", "all", "labeled", "judge-labeled", "skipped"] + (["review set"] if review_ids else [])
-        flt = st.radio("Show", choices, horizontal=True)
+        review_left = sum(1 for r in records if r.gold_id in review_ids and not r.is_human_labeled)
+        default_flt = (
+            "review set" if review_left else ("pending" if any(r.status == "pending" for r in records) else "all")
+        )
+        flt = st.radio("Show", choices, index=choices.index(default_flt), horizontal=True)
         src = st.radio("Source", ["all", "audit_set", "no_facts_span"], horizontal=True)
 
         def _show(r: GoldRecord) -> bool:
