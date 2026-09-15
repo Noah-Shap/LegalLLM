@@ -4,15 +4,18 @@ One row per prompt / model / routing / chunking change. No change ships without 
 (intent.md §7.6). Numbers come from `evals/runs/<run_id>/summary.json`; "gold n" is the number of
 human-labeled documents the IoU column is computed on.
 
-| version | date | change | motivated by (taxonomy class) | run | gold n | IoU vs gold | agreement w/ rules | span found | validator pass | cite fidelity | cost/doc | latency/doc |
+| version | date | change | motivated by (taxonomy class) | run | gold n | IoU vs gold | agreement w/ rules | span found | validator pass | cite fidelity (verbatim / support) | cost/doc | latency/doc |
 |---|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
 | rules_v2 | 2026-04 | frozen baseline (heading map → merge → validate) | — | `rules-baseline_20260915-005115_a87a80` | 0 | — | — | 83.3% | 83.3% | 1.000 | $0 | 0.01 s |
 | llm-v1 | 2026-09-14 | first LLM extractor: Sonnet 5, prompt v1 (`prompt_sha` in run manifest), anchor-based span, effort=medium, head-window ≤ 400k chars, `claude-cli` backend | — (baseline) | `llm-v1-all_20260915-021057_0c9ab4` | 0 | — | 0.478 mean / 0.442 median (≥0.9 on 36.7%) | 68.3% | 48.3% | 0.981 | $0.276 (CLI est.) | 31.6 s |
+| llm-v2 | 2026-09-15 | prompt v2: decide has_facts first (non-briefs, reply/amicus/motions), never extract from attachments, headings may be title-case/numbered/fused, anchors one contiguous run never crossing a page header, cites copied as printed (no range expansion, no Id./supra); code: 8/6/4-word anchor relaxation, one CLI retry | R1, L1, L2, L3, L5, A2, A3 | `llm-v2-all_20260915-040449_c762da` | 0 | — | 0.507 mean / 0.585 median (≥0.9 on 40.8%); v1↔v2 0.813 / 1.000 | 65.8% | 48.3% | 0.962 verbatim / 0.985 support | $0.274 (CLI est.) | 34.4 s |
 
 ## Notes
 
+- **2026-09-15 · llm-v2** (taxonomy §E): fixed L1 on the docket sheet and L5; anchor relaxation rescued 9 spans and cut hard anchor failures 11→8; the has_facts gate now returns no-facts on all 8 non-briefs in the failure stratum. The citation instruction did not change the model's habit of expanding list/range cites, so the validator gained a second tier: *citation support* accepts a cite whose page numbers are printed near the same prefix; strict verbatim fidelity is still reported. **Drift measured:** 10 docs × 3 runs, 30/30 pairs IoU ≥ 0.999 — effectively deterministic at effort=medium. v1↔v2 span agreement median 1.0: the prompt change was surgical.
+
 - **2026-09-14 · llm-v1 first run, read with `evals/error_taxonomy.md` §D:** the LLM's lower span-found rate is
-  dominated by 27 audit docs it declares to have *no facts section* (reply/amicus briefs where the rules emitted a
+  dominated by 17 audit docs it declares to have *no facts section* (first logged as 27, a count that included 10 failure-stratum docs) (reply/amicus briefs where the rules emitted a
   low-confidence fallback span) and 11 anchor failures. Agreement with the rules is high exactly where the rules
   are confident (median IoU 0.98 on `high`) and low where they are not (0.11 on `low`). Gold labels decide who is
   right; until then no accuracy claim is made. Validator change in this iteration: citation fidelity ignores

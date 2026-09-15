@@ -60,7 +60,7 @@ Rate the span as extracted. Do not let a good boundary correction upgrade the ra
   gold span = the **first** contiguous block; note `split_facts`.
 - Reply briefs with a short "Statement" that mostly rebuts: `has_facts = yes` only if it narrates events; else
   `has_facts = no`, note `reply_no_narrative`.
-- **Reply briefs, amicus briefs, declarations/appendices, motion replies** (the first LLM run flags ~27 of the
+- **Reply briefs, amicus briefs, declarations/appendices, motion replies** (the first LLM run flags 17 of the
   100 audit docs as such): `has_facts = no` unless there is a genuine narrative section (Statement of Facts /
   Background / Statement of the Case). An argumentative INTRODUCTION or an "Interest of Amici" section is
   not a facts section. Rate the rules span `incorrect` when it is a fallback slice of such a document.

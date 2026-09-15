@@ -33,7 +33,15 @@ HEADLINE: list[tuple[str, Callable[[dict[str, Any]], str]]] = [
     ("IoU ≥ 0.9 (share of labeled docs)", lambda s: _pct(s["iou_ge_0.9"])),
     ("span found", lambda s: _pct(s["span_found_rate"])),
     ("validator pass", lambda s: _pct(s["validation_pass_rate"])),
-    ("citation fidelity (mean)", lambda s: _num(s["citation_fidelity_mean"])),
+    ("citation fidelity, verbatim (mean)", lambda s: _num(s["citation_fidelity_mean"])),
+    ("citation support, verbatim + components (mean)", lambda s: _num(s.get("citation_support_mean"))),
+    (
+        "cites emitted / non-verbatim / unsupported",
+        lambda s: (
+            f"{s.get('n_cites_emitted', '—')} / {s.get('n_cites_nonverbatim', '—')} / "
+            f"{s.get('n_cites_unsupported', '—')}"
+        ),
+    ),
     ("docs with unsupported cites", lambda s: f"{s['docs_with_unsupported_cites']}/{s['n_docs_with_cites']}"),
     ("recovered span, failure stratum", lambda s: f"{_pct(s['recovered_span_rate'])} (n={s['failure_stratum_n']})"),
     ("auto↔human rating agreement", lambda s: f"{_pct(s['auto_vs_human_agreement'])} (n={s['auto_vs_human_n']})"),
@@ -168,8 +176,10 @@ def render_results(run_dir: Path, *, gold_note: str | None = None) -> str:
     )
     L.append(
         "- *Citation fidelity* is the share of emitted case/record citations that occur verbatim in the "
-        "source (whitespace- and dash-insensitive). The rules path emits only regex-found cites, so it is "
-        "1.0 by construction."
+        "source (whitespace- and dash-insensitive). *Citation support* also accepts cites the source prints "
+        "as list/range shorthand (`App.1494, 1503` → `App.1503`) when every number occurs near the same "
+        "prefix; a wrong pincite or an expanded range stays unsupported. The rules path emits only "
+        "regex-found cites, so both are 1.0 by construction."
     )
     L.append(
         "- *Recovered span* is the share of `no_facts_span` failure documents with a human-located facts "

@@ -1,7 +1,11 @@
 """Tests for legallm.validators (C4)."""
 
+import pytest
+
 from legallm.schema import FactsExtraction, FactsSpan, KeyEvent
 from legallm.validators import (
+    citation_components_supported,
+    citation_support_level,
     citation_supported,
     cite_key,
     parse_date,
@@ -67,6 +71,23 @@ class TestHelpers:
         assert citation_supported("5-ER-862", key)
         assert not citation_supported("776 F. Supp. 1422, 1425", key)  # wrong pincite stays flagged
         assert not citation_supported("1-ER-107", key)  # range expansion stays flagged
+
+    def test_component_support_for_list_and_range_shorthand(self):
+        doc = (
+            "Facility opened. App.1494, 1503, 1515, 1518, 1521, 1571. See also 5-ER-965, ¶ 25; 969-970, "
+            "¶¶ 40-45; 1032-1035. Cf. 776 F. Supp. 1422, 1426 (D. Guam 1991). And 1-ER-106–07."
+        )
+        assert citation_components_supported("App.1503", doc)
+        assert citation_components_supported("App. 1521", doc)
+        assert citation_components_supported("5-ER-969-970", doc)
+        assert citation_components_supported("5-ER-1032-1035", doc)
+        assert not citation_components_supported("776 F. Supp. 1422, 1425", doc)  # 1425 never printed
+        assert not citation_components_supported("1-ER-107", doc)  # 107 never printed near 1-ER
+        assert not citation_components_supported("App.9999", doc)
+        assert not citation_components_supported("Id. at 12", doc)  # prefix present? 'Id.at' absent -> False
+        assert citation_support_level("App.1494", doc) == "verbatim"
+        assert citation_support_level("App.1503", doc) == "components"
+        assert citation_support_level("App.9999", doc) == "unsupported"
 
 
 class TestValidateExtraction:
@@ -138,9 +159,22 @@ class TestValidateExtraction:
             "flags",
             "checks",
             "citation_fidelity",
+            "citation_support",
             "n_citations",
             "n_unsupported_citations",
+            "n_nonverbatim_citations",
         }
+
+    def test_nonverbatim_cite_is_not_a_failure(self):
+        doc = "STATEMENT OF FACTS\n\nSee App.1494, 1503, 1515. The end.\n\nARGUMENT\n\nNo."
+        ex = _ex(facts_span=_span("See App.1494", doc), record_citations=["App.1494", "App.1503", "App.9999"])
+        r = validate_extraction(ex, doc)
+        assert not r.ok  # App.9999 is unsupported
+        assert r.n_citations == 3 and r.n_unsupported_citations == 1 and r.n_nonverbatim_citations == 1
+        assert r.citation_fidelity == pytest.approx(1 / 3) and r.citation_support == pytest.approx(2 / 3)
+        assert "nonverbatim_citation:App.1503" in r.flags and "unsupported_citation:App.9999" in r.flags
+        ex2 = _ex(facts_span=_span("See App.1494", doc), record_citations=["App.1494", "App.1503"])
+        assert validate_extraction(ex2, doc).ok
 
 
 class TestParsePayload:

@@ -103,8 +103,10 @@ class DocEval:
     pred_confidence: str | None = None
     validation_ok: bool | None = None
     flags: list[str] = field(default_factory=list)
-    citation_fidelity: float | None = None
+    citation_fidelity: float | None = None  # verbatim share
+    citation_support: float | None = None  # verbatim + component-supported share
     n_citations: int = 0
+    n_nonverbatim_citations: int = 0
     n_parties: int = 0
     n_key_events: int = 0
     n_record_cites: int = 0
@@ -167,7 +169,9 @@ def evaluate_doc(
     d.validation_ok = report.ok
     d.flags = list(report.flags)
     d.citation_fidelity = report.citation_fidelity
+    d.citation_support = report.citation_support
     d.n_citations = report.n_citations
+    d.n_nonverbatim_citations = report.n_nonverbatim_citations
     d.n_parties = len(ex.parties)
     d.n_key_events = len(ex.key_events)
     d.n_record_cites = len(ex.record_citations)
@@ -361,8 +365,12 @@ def summarize(evals: list[DocEval]) -> dict[str, Any]:
         "validation_pass_rate": _rate(sum(bool(d.validation_ok) for d in evals), len(evals)),
         "empty_facts_rate": _rate(sum("empty_facts" in d.flags for d in evals), len(evals)),
         "citation_fidelity_mean": _mean([d.citation_fidelity for d in with_cites if d.citation_fidelity is not None]),
+        "citation_support_mean": _mean([d.citation_support for d in with_cites if d.citation_support is not None]),
         "docs_with_unsupported_cites": sum(any(f.startswith("unsupported_citation") for f in d.flags) for d in evals),
         "n_docs_with_cites": len(with_cites),
+        "n_cites_emitted": sum(d.n_citations for d in evals),
+        "n_cites_nonverbatim": sum(d.n_nonverbatim_citations for d in evals),
+        "n_cites_unsupported": sum(sum(f.startswith("unsupported_citation") for f in d.flags) for d in evals),
         "recovered_span_rate": _rate(sum((d.iou or 0) >= IOU_PARTIAL for d in fail_with_facts), len(fail_with_facts)),
         "failure_stratum_n": len(failures),
         "failure_correct_no_facts_rate": _rate(sum(not d.span_found for d in fail_no_facts), len(fail_no_facts)),

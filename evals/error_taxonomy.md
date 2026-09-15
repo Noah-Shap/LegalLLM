@@ -1,4 +1,4 @@
-# Error taxonomy (C8) — v0.1, 2026-09-14 (updated with the first llm-v1 run)
+# Error taxonomy (C8) — v0.2, 2026-09-15 (llm-v1 and llm-v2 runs)
 
 Open-coded from (a) the rules_v2 notes histogram over the 120 gold documents and (b) a read of all 20
 `no_facts_span` failure documents (`f001`–`f020`), before any LLM numbers were in. Update this file every
@@ -56,7 +56,7 @@ New classes:
 
 | class | n | what | reading | motivates |
 |---|---:|---|---|---|
-| **R1 rules false-positive span** | 27 audit docs | rules emitted a span; LLM said `has_facts=false` with a reason: reply briefs (g002, g024, g046, g051, g063, g065, g094 …), amicus briefs (g028, g036, g070, g073, g079), a declaration + exhibits (g098), a motion reply (g059). Rules notes on these: `fallback_pre_argument` / `no_exact_heading` / `toc_contamination`, confidence mostly `low` | almost certainly the LLM is right: these documents have no facts narrative; the audit set inherited them from the 2k build's `--no_scope_filter`. **Gold labels decide** (guide: `has_facts = no`). If confirmed, ~27 % of the audit set is a scope leak, not an extraction problem | pipeline scope filter; the eval must score `has_facts` correctness, not only spans |
+| **R1 rules false-positive span** | 17 audit docs (first written as 27, which had counted the 10 failure-stratum docs too) | rules emitted a span; LLM said `has_facts=false` with a reason: reply briefs (g002, g024, g046, g051, g063, g065, g094 …), amicus briefs (g028, g036, g070, g073, g079), a declaration + exhibits (g098), a motion reply (g059). Rules notes on these: `fallback_pre_argument` / `no_exact_heading` / `toc_contamination`, confidence mostly `low` | almost certainly the LLM is right: these documents have no facts narrative; the audit set inherited them from the 2k build's `--no_scope_filter`. **Gold labels decide** (guide: `has_facts = no`). If confirmed, ~17 % of the audit set is a scope leak, not an extraction problem | pipeline scope filter; the eval must score `has_facts` correctness, not only spans |
 | **L1 invented span on a non-brief** | 2 / 8 | f013 (docket sheet + attached R&R), f019 | model finds *a* factual narrative in an attachment | prompt v2: "only the brief itself; ignore attached opinions, R&Rs, exhibits"; labeler decides f019 |
 | **L2 anchor not found** | 11 (9 %) | `end_anchor_not_found` 8, `start_anchor_not_found` 3 → span null, `empty_facts` | model paraphrased, or the anchor crossed a page-header/footnote boundary; anchors were not stored in v1 provenance (fixed: `provenance.anchors` from the next run) | prompt v2: anchors must be one contiguous run of lines; fallback: retry once with "copy exactly", or locate by longest common substring |
 | **L3 non-verbatim citation** | 72 cites in 27 docs (fidelity mean 0.981) after making the check hyphen-insensitive (which cleared 92 PDF-dropped-hyphen cases like `9-ER2042`) | wrong pincite (`776 F. Supp. 1422, 1425` vs source `1426`), range expansion (`1-ER-107` from `1-ER-106–07`), invented ranges (`5-ER-876-877` vs `5-ER-873-876`), `Id. at 664` short forms, glyph loss (`¶¶`, `–` in OCR) | genuine transcription errors mixed with encoding noise | prompt v2: "copy the citation string exactly as printed, including page ranges"; consider dropping `Id.` short forms from `record_citations` |
@@ -64,3 +64,24 @@ New classes:
 | **L5 transient CLI error** | 2 (g018, g061), both succeeded on retry | `claude reported an error: None` | subscription-side hiccup | harness retries once on CLI error |
 
 Operational: span found 68.3 % (rules 83.3 %) — the gap is R1 + L2, not missed sections; validator pass 48.3 %; cost/doc $0.276 at the CLI's API-rate estimate (≈114k cache-creation tokens per call because the CLI prepends its own system prompt; an API-backend call would be ~30k tokens ≈ $0.06); latency 31.6 s mean / 29.4 s median / p90 52 s.
+
+## E. llm-v2 (prompt v2 + anchor relaxation + CLI retry) — run `evals/runs/llm-v2-all_20260915-040449_c762da`, 120 docs, 0 errors
+
+What changed and what it did, class by class (same 120 docs, rules_v2 and llm-v1 from cache):
+
+| class | v1 | v2 | verdict |
+|---|---|---|---|
+| **L1 invented span on a non-brief** | f013 (docket sheet), f019 | f019 only | fixed for the docket sheet; f019 (a bankruptcy filing with a real PRELIMINARY STATEMENT / STATEMENT OF THE CASE) is for the labeler |
+| **L2 anchor not found** | 11 docs → span null | **8** not found; **9** more rescued by 8/6/4-word relaxation (`*_anchor_relaxed` notes) | improved; the remaining 8 need the stored anchors (`provenance.anchors`, present from v2 on) to diagnose |
+| **L3 non-verbatim citation** | 3,144 cites: 41 list/range expansions, 31 unsupported (16 docs) | 3,978 cites (+27 %): **152** expansions, **49** unsupported (23 docs) | the "copy exactly as printed" instruction did *not* stop expansion; the model normalises list/range shorthand regardless. Handled on the metric side instead: **citation support** (verbatim *or* component-supported) is 0.991 (v1) / 0.985 (v2); strict verbatim fidelity 0.981 / 0.962. Residual unsupported cites are composite forms the component check cannot parse (`Doc. 181 at 19:25-20:8, …`, `Appx01571; Appx01574-01575 (ECF 315-07 …)`), OCR glyphs (`1-ER-6l-62`, `¶¶`), and a few genuine errors. 18 of the 49 are in one document (g071). |
+| **L4 boundary drift run-to-run** | one anecdote (406937652: 25754 vs 24455) | measured: **10 docs × 3 runs, 30/30 pairs IoU ≥ 0.999** (9 identical, one 15-char tail difference) — `evals/runs/drift_llm-v2.json` | at effort=medium the extractor is effectively deterministic; a CI regression gate on IoU is meaningful |
+| **L5 transient CLI error** | 2 | 0 (retry-once wired; no retries were needed in this run) | closed |
+| **R1 rules false-positive span** (audit docs the LLM calls no-facts) | 17 | the same 17 + 3 new: g008 (an appendix volume — v1 had extracted from it), g075, g084 (disorganised pro se brief) | consistent; labels decide |
+| **A1 non-brief** (failure stratum) | 6/8 no span | **8/8** no span (f013 docket sheet and f010 — a district-court *order*, reclassified from A2 to A1 — now correctly no-facts) | fixed |
+| **A2 heading fused with body** | 5/6 spans | 4/5 spans after moving f010 to A1 (f003, f006, f014, f018; not f005) | unchanged |
+| **A3 title-case / numbered** | f001, f007, f014 | same | unchanged |
+| **A4 present-but-missed** | f012 span | f012 now no-facts (a 4-page brief with only `III` as a heading); f002, f015 none | needs a look |
+
+Aggregate: span found 65.8 % (v1 68.3 %) — the drop is entirely the 6 new `has_facts=false` verdicts, 3 of which are demonstrably right (g008, f010, f013); validator pass 48.3 % (v1 55.0 %) — driven by the +27 % citation volume meeting a strict check; rules↔v2 agreement 0.507 mean / 0.585 median (v1 0.478 / 0.442), 0.838 mean / 0.983 median where rules are `high`; **v1↔v2 agreement 0.813 mean, median 1.0, 92/120 docs ≥ 0.9** — the prompt change moved the documents it was aimed at and left the rest alone; cost $0.274/doc, 34 s/doc.
+
+Open for v3 (after labels): (a) L3 — either restrict `record_citations` to a stricter "as printed, no splitting" rule with an example, or accept expansion as desired behaviour and make *support* the headline metric; (b) the 8 residual L2 anchor failures; (c) f019 / A4 once labeled.
