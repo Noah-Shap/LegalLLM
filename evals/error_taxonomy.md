@@ -134,3 +134,25 @@ agree with the judge on has_facts and, for g001, on the span to within one chara
 span `partially_correct` where the judge said `correct` (the addendum sentence) — a rubric-boundary call. Judge
 verdicts are therefore held as **suggestions** (`legallm-gold prefill`) with an explicit accept policy and a
 separate `labeler="judge:…"` tag; human labels on an overlap of ≥ 30 docs are still required for κ.
+
+### F.1 Human review of the judge (2026-09-15, Noah, 35 docs)
+
+Noah reviewed 35 documents (the 2 the judge left unresolved, the 19 it rated `partially_correct`, and 3 sampled
+per accept policy), accepting the judge's suggestion where it matched his reading and overriding otherwise
+(4 own labels, 31 accepted-with-review). **Judge ↔ human:** 3-class rating κ = **0.885** (agreement 93.9 %, n = 33
+rules spans); has-facts κ = **1.00** (n = 35); span IoU between the human gold span and the judge's suggested span
+0.935 mean, 29/31 ≥ 0.9. The only rating disagreements are two rubric-boundary calls: g001 (Noah: partially
+correct — the rules span starts on the heading and a stray sentence; judge: correct) and g052 (Noah: correct;
+judge: partially correct). This clears the intent's κ ≥ 0.4 threshold for using the judge as a headline metric,
+and the 85 judge-accepted labels stay tagged `judge:claude-opus-5` so the two label sources remain separable.
+
+Gold-referenced results after the review (`evals/runs/labeled-human_20260915-223814_a0177c` and `evals/runs/labeled-any_20260915-224235_c0ac4e`):
+
+| method | human-only gold (n=35): IoU mean / ≥0.9 | all gold (n=120, 85 judge-accepted): IoU mean / ≥0.9 | recovered span (failure stratum, all) | no-facts verdicts correct (all) |
+|---|---|---|---|---|
+| rules_v2 | 0.647 / 34.3% | 0.572 / 46.7% | 0.0% | 100.0% |
+| llm-v1 | 0.826 / 74.3% | 0.814 / 76.7% | 85.7% | 76.9% |
+| llm-v2 | 0.869 / 85.7% | 0.912 / 90.0% | 85.7% | 100.0% |
+
+llm-v2 vs rules_v2, paired on human-only gold: wins 25 / ties 5 / losses 5, mean ΔIoU +0.222;
+on all gold: wins 73 / ties 37 / losses 10, ΔIoU +0.340.

@@ -15,3 +15,11 @@ Offsets are into `preprocess_text(normalize_text(raw))` — the same text `legal
 use — so gold spans, rules spans, and LLM spans are directly comparable (span IoU, C6).
 
 Rebuild from scratch (destroys labels): `legallm-gold init --force`.
+
+## Labeling provenance (2026-09-15)
+
+Labels were produced judge-assisted: an Opus 5 judge (`evals/judge/`) rated every candidate span and its verdicts
+were attached as suggestions; 85 records were bulk-accepted under explicit policies (`labeler = "judge:claude-opus-5"`),
+and Noah reviewed 35 (`review_set_v1.txt`: the 2 unresolved, the 19 partially-correct verdicts, 3 per policy),
+recording human labels (`labeler = "noah"`). Judge↔human κ: 0.885 (rating), 1.00 (has_facts); span IoU 0.935.
+`legallm-xeval --labeler human` restricts gold to the human labels.

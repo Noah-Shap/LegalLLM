@@ -1,7 +1,7 @@
 {
-  "build_id": "583547220752",
-  "timestamp_utc": "2026-09-15T15:43:55.459048+00:00",
-  "git_commit": "02afd86aa50eee47cf1d685e1c770714d62a7dcb",
+  "build_id": "a0177c7319ef",
+  "timestamp_utc": "2026-09-15T22:38:14.195460+00:00",
+  "git_commit": "d867e2a84de4d742a85bde37d4eee0f772a00055",
   "git_dirty": true,
   "legallm_version": "0.1.0",
   "python_version": "3.13.14 (tags/v3.13.14:fd17997, Jun 10 2026, 13:03:48) [MSC v.1944 64 bit (AMD64)]",
@@ -15,7 +15,7 @@
     ],
     "subset": "labeled",
     "limit": null,
-    "n_docs": 118,
+    "n_docs": 35,
     "offline": true
   },
   "dependency_versions": {
@@ -25,16 +25,16 @@
     "requests": "2.32.5"
   },
   "results_summary": {
-    "run_id": "labeled-judge_20260915-154355_583547",
+    "run_id": "labeled-human_20260915-223814_a0177c",
     "methods": {
       "rules_v2": {
         "extractor_version": "rules_v2",
         "backend": "local",
         "model_id": null,
         "prompt_sha": null,
-        "n_docs": 118,
-        "n_gold": 118,
-        "iou_mean": 0.565,
+        "n_docs": 35,
+        "n_gold": 35,
+        "iou_mean": 0.6473,
         "cost_usd_total": null
       },
       "llm-v1": {
@@ -42,20 +42,20 @@
         "backend": "claude-cli",
         "model_id": "claude-sonnet-5",
         "prompt_sha": "2e9b97f8dcd48884",
-        "n_docs": 118,
-        "n_gold": 118,
-        "iou_mean": 0.8225,
-        "cost_usd_total": 32.7965
+        "n_docs": 35,
+        "n_gold": 35,
+        "iou_mean": 0.8258,
+        "cost_usd_total": 11.5781
       },
       "llm-v2": {
         "extractor_version": "llm-v2",
         "backend": "claude-cli",
         "model_id": "claude-sonnet-5",
         "prompt_sha": "aa4020336ae219ec",
-        "n_docs": 118,
-        "n_gold": 118,
-        "iou_mean": 0.9276,
-        "cost_usd_total": 32.4901
+        "n_docs": 35,
+        "n_gold": 35,
+        "iou_mean": 0.8692,
+        "cost_usd_total": 11.3993
       }
     }
   }

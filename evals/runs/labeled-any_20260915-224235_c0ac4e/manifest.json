@@ -1,0 +1,62 @@
+{
+  "build_id": "c0ac4e125541",
+  "timestamp_utc": "2026-09-15T22:42:35.336207+00:00",
+  "git_commit": "d867e2a84de4d742a85bde37d4eee0f772a00055",
+  "git_dirty": true,
+  "legallm_version": "0.1.0",
+  "python_version": "3.13.14 (tags/v3.13.14:fd17997, Jun 10 2026, 13:03:48) [MSC v.1944 64 bit (AMD64)]",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "parameters": {
+    "gold_path": "evals\\gold\\gold_v1.jsonl",
+    "methods": [
+      "rules_v2",
+      "llm-v1",
+      "llm-v2"
+    ],
+    "subset": "labeled",
+    "limit": null,
+    "n_docs": 120,
+    "offline": true
+  },
+  "dependency_versions": {
+    "pandas": "3.0.0",
+    "pypdf": "6.6.2",
+    "PyMuPDF": "1.27.1",
+    "requests": "2.32.5"
+  },
+  "results_summary": {
+    "run_id": "labeled-any_20260915-224235_c0ac4e",
+    "methods": {
+      "rules_v2": {
+        "extractor_version": "rules_v2",
+        "backend": "local",
+        "model_id": null,
+        "prompt_sha": null,
+        "n_docs": 120,
+        "n_gold": 120,
+        "iou_mean": 0.5722,
+        "cost_usd_total": null
+      },
+      "llm-v1": {
+        "extractor_version": "llm-v1",
+        "backend": "claude-cli",
+        "model_id": "claude-sonnet-5",
+        "prompt_sha": "2e9b97f8dcd48884",
+        "n_docs": 120,
+        "n_gold": 120,
+        "iou_mean": 0.8143,
+        "cost_usd_total": 33.0965
+      },
+      "llm-v2": {
+        "extractor_version": "llm-v2",
+        "backend": "claude-cli",
+        "model_id": "claude-sonnet-5",
+        "prompt_sha": "aa4020336ae219ec",
+        "n_docs": 120,
+        "n_gold": 120,
+        "iou_mean": 0.9122,
+        "cost_usd_total": 32.9082
+      }
+    }
+  }
+}

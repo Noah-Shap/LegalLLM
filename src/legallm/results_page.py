@@ -65,6 +65,13 @@ FIELDS: list[tuple[str, str, bool]] = [
 ]
 
 
+def _gold_desc(meta: dict[str, Any]) -> str:
+    n, h, j = meta["n_gold"], meta.get("n_gold_human"), meta.get("n_gold_judge")
+    if h is None or j is None:
+        return f"{n} gold-labeled"
+    return f"{n} gold-labeled: {h} human, {j} judge-accepted"
+
+
 def render_results(run_dir: Path, *, gold_note: str | None = None) -> str:
     """Build the curated results page from ``<run_dir>/summary.json``."""
     run_dir = Path(run_dir)
@@ -78,7 +85,7 @@ def render_results(run_dir: Path, *, gold_note: str | None = None) -> str:
     L.append("")
     L.append(
         f"Run `{meta['run_id']}` · gold `{meta['gold_path']}` · subset **{meta['subset']}** · "
-        f"{meta['n_docs']} documents ({n_gold} human-labeled) · {meta['timestamp'][:19]}Z"
+        f"{meta['n_docs']} documents ({_gold_desc(meta)}) · {meta['timestamp'][:19]}Z"
     )
     L.append("")
     if n_gold == 0:
@@ -176,7 +183,11 @@ def render_results(run_dir: Path, *, gold_note: str | None = None) -> str:
 
     L.append("## How to read this")
     L.append("")
-    L.append("- *IoU vs gold* compares each method's span with the human gold span, on labeled documents only.")
+    L.append(
+        "- *IoU vs gold* compares each method's span with the gold span, on labeled documents only. Gold labels "
+        "are either human (Noah) or judge-accepted (Opus 5 verdicts accepted under an explicit policy, "
+        "`labeler=judge:…`); `legallm-xeval --labeler human` restricts to the human labels."
+    )
     L.append(
         "- *Agreement* is IoU between the two methods' spans on every document; high agreement with low "
         "gold IoU means both are wrong the same way."
