@@ -35,14 +35,14 @@ converted into a deployed LLM extraction app with a disciplined eval loop (Phase
   `routing.py` (`llm-v3`: Sonnet 5 at prompt v2 first, Opus 5 on anchor failure / validator flag / error; both passes in provenance).
   `api.py` (C10 FastAPI: `POST /extract` PDF/text → extraction + validation [+ rules baseline], `GET /health`; JSONL request log, rate limit),
   `ui_app.py` (C11 Streamlit side-by-side UI; in-process or via `LEGALLM_API_URL`), `observability.py` (C12 `evals/dashboard.md` from the request log + eval runs).
-  `guard.py` (C15 injection guard: document-text scan → `injection_suspected:*` flags; output-field scan fails validation), `ci_gate.py` (C13 `legallm-gate`: offline smoke eval on `tests/fixtures/xeval_smoke` with frozen LLM responses in `…/cache`, vs `evals/ci/smoke_baseline.json`).
+  `guard.py` (C15 injection guard: document-text scan → `injection_suspected:*` flags; output-field scan fails validation), `ci_gate.py` + `replay.py` (C13 `legallm-gate`: smoke eval on `tests/fixtures/xeval_smoke` with recorded raw model responses (`responses.jsonl`) replayed through the real extractor, vs `evals/ci/smoke_baseline.json`).
   `gold.py` + `labeler_app.py` (C5 gold manifest, verification, Streamlit labeler).
   `extraction_eval.py` (C6/C7: span IoU, auto-rating, fidelity, cost/latency; cached; `legallm-xeval`),
   `results_page.py` (evals/RESULTS.md renderer).
   `judge.py` (Opus 5 judge: rates candidate spans, names issues, proposes anchors; feeds gold prefill/accept).
   `downstream_eval.py` (C6 downstream: resolver-cache resolution % + BM25 Recall@10 on each method's span; cache only, no network).
 - `evals/gold/` — tracked gold labels (ids + offsets only) and `LABELING_GUIDE.md`; `evals/runs/` — eval reports; `evals/judge/` — judge verdicts; `evals/RESULTS.md`, `evals/error_taxonomy.md`, `evals/iterations.md`.
-- `tests/` — pytest, all offline (mock `requests`; PDFs built with PyMuPDF in tmp_path). `tests/fixtures/xeval_smoke/cache/` holds frozen model responses for the 3 smoke briefs — re-record with `legallm-xeval --gold tests/fixtures/xeval_smoke/gold_smoke.jsonl --subset all --cache-dir tests/fixtures/xeval_smoke/cache --backend claude-cli --force` only when a prompt/model changes, then `legallm-gate --update-baseline`.
+- `tests/` — pytest, all offline (mock `requests`; PDFs built with PyMuPDF in tmp_path). `tests/fixtures/xeval_smoke/responses.jsonl` holds recorded raw model responses for the 3 smoke briefs (keyed by model+prompt+document) — re-record with `legallm-gate --record --backend claude-cli` only when a prompt/model changes, then `legallm-gate --update-baseline`.
 - `deploy/` — HF Space files (Streamlit UI) + `deploy/README.md`; `Dockerfile` at root serves the API. Hosted targets need `ANTHROPIC_API_KEY` (Messages API); `claude-cli` is local-only.
 - `data/` — gitignored; see `data/README.md`. Primary build: `data/processed/facts_dataset_2k.parquet`.
 - `reports/` — eval reports and the 100-doc gold audit set (unrated).
@@ -71,7 +71,7 @@ legallm-downstream --run evals/runs/<id> --methods rules_v2 llm-v2   # resolver 
 LEGALLM_LLM_BACKEND=claude-cli legallm-api --port 8000              # service; env: LEGALLM_DEFAULT_METHOD (llm-v3), LEGALLM_REQUEST_LOG (logs/requests.jsonl)
 legallm-ui                                                           # Streamlit UI (in-process); LEGALLM_API_URL=http://host:8000 to use the service
 legallm-dashboard                                                    # evals/dashboard.md from logs/requests.jsonl + evals/runs
-legallm-gate [--update-baseline]                                     # CI regression gate (offline; IoU -2pt / fidelity -1pt / any error fails); rewrite baseline after an intended change
+legallm-gate [--update-baseline] [--record --backend claude-cli]     # CI regression gate (replays recorded responses; IoU -2pt / fidelity -1pt / any error fails); --record re-records after a prompt/model change
 ```
 
 ## Environment

@@ -47,7 +47,7 @@ jobs:
   # compared with evals/ci/smoke_baseline.json. Fails the build on IoU -2 pts / fidelity -1 pt / any error.
   gate:
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    # independent of the test job so a regression reports on both axes (unit tests and eval metrics)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
