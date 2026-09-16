@@ -43,7 +43,7 @@ jobs:
         with:
           file: ./coverage.xml
 
-  # C13 regression gate: offline smoke eval (frozen model responses in tests/fixtures/xeval_smoke/cache)
+  # C13 regression gate: offline smoke eval (recorded model responses in tests/fixtures/xeval_smoke/responses.jsonl)
   # compared with evals/ci/smoke_baseline.json. Fails the build on IoU -2 pts / fidelity -1 pt / any error.
   gate:
     runs-on: ubuntu-latest
