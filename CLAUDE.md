@@ -32,7 +32,8 @@ converted into a deployed LLM extraction app with a disciplined eval loop (Phase
   `single_doc.py` (one PDF/text → extraction + validation; extractor registry for LLM methods).
   `llm_extractor.py` (C2, Sonnet 5, anchor-based spans, provenance), `prompts.py` (versioned prompts),
   `claude_cli.py` (headless `claude -p` transport; strips API key, runs in an empty temp dir).
-  `routing.py` (`llm-v3`: Sonnet 5 at prompt v2 first, Opus 5 on anchor failure / validator flag / error; both passes in provenance).
+  `routing.py` (routed methods: `llm-v3` = Sonnet 5 prompt v2 → Opus 5 on anchor failure / validator flag / error; `llm-v5` = same route on prompt v3; both passes in provenance).
+  Method lineage (linear, one change per step): `llm-v1` prompt v1 · `llm-v2` prompt v2 · `llm-v3` routing · `llm-v4` prompt v3 (structured record cites, wire schema 2) · `llm-v5` prompt v3 + routing. Plain methods map to prompt versions in `llm_extractor.METHOD_PROMPT_VERSIONS`; routed ones in `routing.ROUTED_METHODS`.
   `api.py` (C10 FastAPI: `POST /extract` PDF/text → extraction + validation [+ rules baseline], `GET /health`; JSONL request log, rate limit),
   `ui_app.py` (C11 Streamlit side-by-side UI; in-process or via `LEGALLM_API_URL`), `observability.py` (C12 `evals/dashboard.md` from the request log + eval runs).
   `guard.py` (C15 injection guard: document-text scan → `injection_suspected:*` flags; output-field scan fails validation), `ci_gate.py` + `replay.py` (C13 `legallm-gate`: smoke eval on `tests/fixtures/xeval_smoke` with recorded raw model responses (`responses.jsonl`) replayed through the real extractor, vs `evals/ci/smoke_baseline.json`).
@@ -61,6 +62,7 @@ legallm-eval --parquet data/processed/facts_dataset_2k.parquet --baselines popul
 legallm-extract data/raw/pdfs/<id>.pdf [--json --out out.json] [--method rules_v2]   # single doc, offline
 legallm-extract <pdf> --method llm-v2 --backend claude-cli   # Sonnet 5 via headless claude -p (subscription, no API credits)
 legallm-extract <pdf> --method llm-v3 --backend claude-cli   # routed: Sonnet 5, escalate to Opus 5 when the cheap pass fails
+legallm-extract <pdf> --method llm-v5 --backend claude-cli   # routed on prompt v3 (record citations as printed + page list)
 legallm-extract <pdf> --method llm-v1                        # same via Messages API (needs funded ANTHROPIC_API_KEY)
 legallm-gold stats | verify | label                          # gold set (evals/gold/gold_v1.jsonl); label = Streamlit UI
 legallm-xeval --methods rules_v2 llm-v1 --subset labeled --backend claude-cli   # extraction eval -> evals/runs/<id>/report.md
