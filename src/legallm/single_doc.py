@@ -22,9 +22,9 @@ from typing import Any
 
 from legallm.baseline_adapter import RULES_VERSION, extract_rules, preprocess_text
 from legallm.guard import apply_guard
-from legallm.llm_extractor import PROMPT_VERSIONS, LlmExtractionError, llm_method
+from legallm.llm_extractor import METHOD_PROMPT_VERSIONS, LlmExtractionError, llm_method
 from legallm.pipeline import doc_needs_ocr, extract_text_best, get_pdf_page_count_fast, normalize_text
-from legallm.routing import ROUTED_METHOD, routed_method
+from legallm.routing import ROUTED_METHODS, routed_method
 from legallm.schema import FactsExtraction
 from legallm.validators import ValidationReport, validate_extraction
 
@@ -32,8 +32,8 @@ Extractor = Callable[[str, str], FactsExtraction]
 
 EXTRACTORS: dict[str, Extractor] = {
     RULES_VERSION: extract_rules,
-    **{f"llm-{v}": llm_method(v) for v in PROMPT_VERSIONS},  # llm-v1, llm-v2, ...
-    ROUTED_METHOD: routed_method(),  # llm-v3: Sonnet 5 first, Opus 5 on validator/anchor failure
+    **{m: llm_method(v) for m, v in METHOD_PROMPT_VERSIONS.items()},  # llm-v1, llm-v2 (prompt v2), llm-v4 (prompt v3)
+    **{m: routed_method(m) for m in ROUTED_METHODS},  # llm-v3 (routed v2), llm-v5 (routed v3): Opus 5 on failure
 }
 DEFAULT_METHOD = RULES_VERSION
 DEFAULT_WARNINGS_LOG = Path("logs/pdf_parse_warnings.log")

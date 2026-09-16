@@ -153,7 +153,7 @@ class TestRegistryAndHarness:
 
         assert ROUTED_METHOD in EXTRACTORS
         reset_router()
-        r = get_router(RouteConfig(backend="api"))
+        r = get_router(config=RouteConfig(backend="api"))
         assert get_router() is r
         sha = method_config_sha(ROUTED_METHOD)
         assert len(sha) == 12 and sha != method_config_sha("llm-v2")

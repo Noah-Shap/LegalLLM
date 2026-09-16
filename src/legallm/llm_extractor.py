@@ -34,8 +34,8 @@ from typing import Any
 
 from legallm.claude_cli import BACKEND_NAME as CLI_BACKEND
 from legallm.claude_cli import ClaudeCliClient, ClaudeCliError
-from legallm.prompts import PROMPT_VERSION, PROMPT_VERSIONS, PROMPTS
-from legallm.schema import FactsExtraction, FactsSpan, LlmFactsOutput, llm_output_json_schema
+from legallm.prompts import PROMPT_VERSION, PROMPT_VERSIONS, PROMPT_WIRE, PROMPTS
+from legallm.schema import FactsExtraction, FactsSpan, RecordCite, llm_output_json_schema, wire_model
 from legallm.validators import parse_payload
 
 DEFAULT_MODEL = "claude-sonnet-5"  # D1 (intent.md §11): Sonnet 5 is the extractor tier
@@ -235,7 +235,9 @@ class LlmExtractor:
     def __init__(self, config: LlmConfig | None = None, client: Any = None):
         self.config = config or LlmConfig()
         self._client = client
-        self.schema = llm_output_json_schema()
+        self.wire_version = PROMPT_WIRE.get(self.config.prompt_version, "1")
+        self.wire_model = wire_model(self.wire_version)
+        self.schema = llm_output_json_schema(self.wire_version)
         if self.config.prompt_version not in PROMPTS and self.config.system_prompt is None:
             raise LlmExtractionError(f"unknown prompt version {self.config.prompt_version!r}; known: {PROMPT_VERSIONS}")
         self.prompt_sha = hashlib.sha256(
@@ -375,7 +377,7 @@ class LlmExtractor:
             raise LlmExtractionError(f"non-JSON model output: {e}") from e
 
         try:
-            wire = LlmFactsOutput.model_validate(raw)
+            wire = self.wire_model.model_validate(raw)
         except Exception as e:  # pydantic ValidationError
             raise LlmExtractionError(f"model output failed schema: {e}") from e
 
@@ -395,12 +397,24 @@ class LlmExtractor:
         else:
             notes.append("llm_no_facts")
 
+        record_citations: list[str] = []
+        structured: list[dict[str, Any]] = []
+        for rc in wire.record_citations:
+            if isinstance(rc, RecordCite):  # wire schema 2: keep the printed string, remember the pages
+                record_citations.append(rc.as_printed)
+                structured.append(rc.model_dump())
+            else:
+                record_citations.append(rc)
+        if structured:
+            provenance["record_cites_structured"] = structured
+            provenance["wire"] = self.wire_version
+
         payload = {
             "facts_span": span.model_dump() if span else None,
             "parties": wire.parties,
             "procedural_posture": wire.procedural_posture,
             "key_events": [ev.model_dump() for ev in wire.key_events],
-            "record_citations": wire.record_citations,
+            "record_citations": record_citations,
             "case_citations": wire.case_citations,
             "confidence": wire.confidence,
             "notes": notes,
@@ -420,11 +434,24 @@ _extractors: dict[str, LlmExtractor] = {}
 _overrides: dict[str, Any] = {}
 
 
+# Plain (single-model) LLM methods -> prompt version. Routed methods live in routing.ROUTED_METHODS.
+# The lineage is linear on purpose: llm-v3 is the routing iteration (no prompt change), so prompt v3 is llm-v4.
+METHOD_PROMPT_VERSIONS: dict[str, str] = {"llm-v1": "v1", "llm-v2": "v2", "llm-v4": "v3"}
+
+
 def method_version(method: str) -> str:
-    """'llm-v2' -> 'v2'."""
-    if not method.startswith("llm-"):
-        raise KeyError(f"not an llm method: {method!r}")
-    return method[4:]
+    """'llm-v2' -> 'v2' (plain methods only; routed methods raise KeyError)."""
+    if method not in METHOD_PROMPT_VERSIONS:
+        raise KeyError(f"not a plain llm method: {method!r}; known: {sorted(METHOD_PROMPT_VERSIONS)}")
+    return METHOD_PROMPT_VERSIONS[method]
+
+
+def plain_method_for(version: str) -> str:
+    """'v3' -> 'llm-v4' (the single-model method that runs this prompt version)."""
+    for m, v in METHOD_PROMPT_VERSIONS.items():
+        if v == version:
+            return m
+    raise KeyError(f"no plain method runs prompt version {version!r}")
 
 
 def get_extractor(version: str = PROMPT_VERSION) -> LlmExtractor:

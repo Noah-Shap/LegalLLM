@@ -115,6 +115,47 @@ class LlmFactsOutput(BaseModel):
     notes: list[str] = Field(description="Short diagnostic notes; empty list if none.")
 
 
+class RecordCite(BaseModel):
+    """A record citation as printed, plus the pages it refers to (wire schema 2, prompt v3).
+
+    Splitting *as printed* from *pages* gives the model a place to put an expanded list or range without
+    rewriting the printed string — taxonomy class L3 (list/range expansion) fixed at the source.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    as_printed: str = Field(
+        description=(
+            "The record citation exactly as printed in the facts section, character-for-character, keeping a "
+            "full list or range as one string (e.g. '2-ER-104, 106', '5-ER-873-876', 'App. 240')."
+        )
+    )
+    prefix: str | None = Field(
+        description="The record/volume prefix as printed (e.g. '2-ER', 'App.', 'Dkt.'), or null."
+    )
+    pages: list[str] = Field(
+        description="Every page the citation refers to, as printed (e.g. ['104', '106']); a range as its two endpoints."
+    )
+
+
+class LlmFactsOutputV2(LlmFactsOutput):
+    """Wire schema 2: record citations are ``RecordCite`` objects; everything else as schema 1."""
+
+    record_citations: list[RecordCite] = Field(  # type: ignore[assignment]
+        description="Record cites appearing inside the facts section, each as printed plus its page list."
+    )
+
+
+WIRE_MODELS: dict[str, type[LlmFactsOutput]] = {"1": LlmFactsOutput, "2": LlmFactsOutputV2}
+WIRE_VERSIONS: tuple[str, ...] = tuple(WIRE_MODELS)
+
+
+def wire_model(wire: str = "1") -> type[LlmFactsOutput]:
+    if wire not in WIRE_MODELS:
+        raise KeyError(f"unknown wire schema {wire!r}; known: {WIRE_VERSIONS}")
+    return WIRE_MODELS[wire]
+
+
 def _inline_refs(node: Any, defs: dict[str, Any]) -> Any:
     """Recursively replace ``$ref`` pointers with their ``$defs`` bodies."""
     if isinstance(node, dict):
@@ -127,13 +168,13 @@ def _inline_refs(node: Any, defs: dict[str, Any]) -> Any:
     return node
 
 
-def llm_output_json_schema() -> dict[str, Any]:
-    """JSON schema for ``LlmFactsOutput`` suitable for ``output_config.format``.
+def llm_output_json_schema(wire: str = "1") -> dict[str, Any]:
+    """JSON schema for the wire model (``"1"`` = ``LlmFactsOutput``, ``"2"`` = ``LlmFactsOutputV2``).
 
     ``$ref``s are inlined and every object carries ``additionalProperties: false``
     (from ``extra="forbid"``), which is what strict structured output requires.
     """
-    raw = LlmFactsOutput.model_json_schema()
+    raw = wire_model(wire).model_json_schema()
     schema: dict[str, Any] = _inline_refs(raw, raw.get("$defs", {}))
     schema.pop("title", None)
     return schema

@@ -57,20 +57,27 @@ class Check:
 
 def build_extractors(store: dict[str, Any], *, record: bool = False, backend: str = "claude-cli") -> dict[str, Any]:
     """llm-v2 (cheap) and llm-v3 (routed) extractors; model calls are replayed from, or recorded into, ``store``."""
-    from legallm.llm_extractor import LlmConfig, LlmExtractor
+    from legallm.llm_extractor import METHOD_PROMPT_VERSIONS, LlmConfig, LlmExtractor, plain_method_for
     from legallm.replay import RecordingClient, ReplayClient
-    from legallm.routing import STRONG_MODEL, RouteConfig, Router
+    from legallm.routing import ROUTED_METHODS, Router
 
-    cheap_cfg = LlmConfig(prompt_version="v2", backend=backend)
-    strong_cfg = LlmConfig(prompt_version="v2", backend=backend, model=STRONG_MODEL, effort="high")
     if record:
-        client: Any = RecordingClient(LlmExtractor(cheap_cfg).client, store)
+        client: Any = RecordingClient(LlmExtractor(LlmConfig(backend=backend)).client, store)
     else:
         client = ReplayClient(store)
-    cheap = LlmExtractor(cheap_cfg, client=client)
-    strong = LlmExtractor(strong_cfg, client=client)
-    router = Router(RouteConfig(backend=backend), cheap=cheap, strong=strong)
-    return {"llm-v2": cheap, "llm-v3": router}
+    out: dict[str, Any] = {
+        m: LlmExtractor(LlmConfig(prompt_version=v, backend=backend), client=client)
+        for m, v in METHOD_PROMPT_VERSIONS.items()
+    }
+    for m, cfg in ROUTED_METHODS.items():
+        strong = LlmExtractor(
+            LlmConfig(
+                prompt_version=cfg.strong_version, backend=backend, model=cfg.strong_model, effort=cfg.strong_effort
+            ),
+            client=client,
+        )
+        out[m] = Router(cfg, method=m, cheap=out[plain_method_for(cfg.cheap_version)], strong=strong)
+    return out
 
 
 def run_smoke(

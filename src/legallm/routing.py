@@ -31,6 +31,7 @@ from legallm.llm_extractor import (
     LlmExtractor,
     current_overrides,
     get_extractor,
+    plain_method_for,
 )
 from legallm.schema import FactsExtraction
 from legallm.validators import validate_extraction
@@ -55,7 +56,14 @@ class RouteConfig:
 
     @property
     def cheap_method(self) -> str:
-        return f"llm-{self.cheap_version}"
+        return plain_method_for(self.cheap_version)
+
+
+# Routed methods -> configuration. llm-v3 = prompt v2 both tiers; llm-v5 = prompt v3 (structured record cites).
+ROUTED_METHODS: dict[str, RouteConfig] = {
+    "llm-v3": RouteConfig(cheap_version="v2", strong_version="v2"),
+    "llm-v5": RouteConfig(cheap_version="v3", strong_version="v3"),
+}
 
 
 def trigger_for(extraction: FactsExtraction | None, doc_text: str, triggers: tuple[str, ...]) -> str | None:
@@ -88,10 +96,12 @@ class Router:
         self,
         config: RouteConfig | None = None,
         *,
+        method: str = ROUTED_METHOD,
         cheap: LlmExtractor | None = None,
         strong: LlmExtractor | None = None,
     ):
-        self.config = config or RouteConfig()
+        self.config = config or ROUTED_METHODS.get(method) or RouteConfig()
+        self.method = method
         self.cheap_method = self.config.cheap_method
         self._cheap = cheap
         self._strong = strong
@@ -125,7 +135,7 @@ class Router:
         c, s = self.cheap, self.strong
         return "|".join(
             [
-                ROUTED_METHOD,
+                self.method,
                 c.prompt_sha,
                 c.config.model,
                 c.config.effort,
@@ -153,7 +163,7 @@ class Router:
         trigger = trigger_for(cheap, doc_text, self.config.triggers)
         cheap_prov = (cheap.provenance if cheap is not None else None) or {}
         routing: dict[str, Any] = {
-            "method": ROUTED_METHOD,
+            "method": self.method,
             "trigger": trigger,
             "escalated": trigger is not None,
             "cheap": {
@@ -203,33 +213,33 @@ class Router:
         prov["routing"] = routing
         notes = list(ex.notes)
         notes.append(f"routed:{tier}" + (f":{routing['trigger']}" if routing["trigger"] else ""))
-        return ex.model_copy(update={"extractor_version": ROUTED_METHOD, "provenance": prov, "notes": notes})
+        return ex.model_copy(update={"extractor_version": self.method, "provenance": prov, "notes": notes})
 
     def __call__(self, doc_text: str, doc_type_id: str = "UNKNOWN") -> FactsExtraction:
         return self.route(doc_text, doc_type_id)
 
 
-_router: Router | None = None
+_routers: dict[str, Router] = {}
 
 
-def get_router(config: RouteConfig | None = None) -> Router:
-    """The shared router (rebuilt when a config is passed or after ``configure_default``)."""
-    global _router
-    if config is not None or _router is None:
-        _router = Router(config)
-    return _router
+def get_router(method: str = ROUTED_METHOD, config: RouteConfig | None = None) -> Router:
+    """The shared router for a routed method (rebuilt when a config is passed or after ``configure_default``)."""
+    if config is not None or method not in _routers:
+        if config is None and method not in ROUTED_METHODS:
+            raise KeyError(f"unknown routed method {method!r}; known: {sorted(ROUTED_METHODS)}")
+        _routers[method] = Router(config, method=method)
+    return _routers[method]
 
 
 def reset_router() -> None:
-    global _router
-    _router = None
+    _routers.clear()
 
 
-def routed_method() -> Any:
-    """Registry callable for ``llm-v3`` that always resolves the current shared router."""
+def routed_method(method: str = ROUTED_METHOD) -> Any:
+    """Registry callable for a routed method that always resolves the current shared router."""
 
     def _fn(doc_text: str, doc_type_id: str = "UNKNOWN") -> FactsExtraction:
-        return get_router()(doc_text, doc_type_id)
+        return get_router(method)(doc_text, doc_type_id)
 
-    _fn.__name__ = "extract_llm_v3"
+    _fn.__name__ = f"extract_{method.replace('-', '_')}"
     return _fn

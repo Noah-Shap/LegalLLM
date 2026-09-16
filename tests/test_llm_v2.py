@@ -30,7 +30,7 @@ DOC = (
 
 class TestVersions:
     def test_prompts_registry(self):
-        assert PROMPT_VERSIONS == ("v1", "v2") and PROMPT_VERSION == "v2"
+        assert PROMPT_VERSIONS == ("v1", "v2", "v3") and PROMPT_VERSION == "v2"
         assert PROMPTS["v1"][0] != PROMPTS["v2"][0]
         assert "attachments are never the facts section" in PROMPTS["v2"][0]
         assert "never expand" in PROMPTS["v2"][0]

@@ -197,10 +197,10 @@ def method_config_sha(method: str) -> str:
     payload = method
     if method.startswith("llm-"):
         from legallm.llm_extractor import get_extractor, method_version
-        from legallm.routing import ROUTED_METHOD, get_router
+        from legallm.routing import ROUTED_METHODS, get_router
 
-        if method == ROUTED_METHOD:
-            return hashlib.sha256(get_router().config_payload.encode()).hexdigest()[:12]
+        if method in ROUTED_METHODS:
+            return hashlib.sha256(get_router(method).config_payload.encode()).hexdigest()[:12]
 
         try:
             ex = get_extractor(method_version(method))
@@ -303,10 +303,10 @@ def run_method(
     from legallm.single_doc import EXTRACTORS
 
     fn = extractor or EXTRACTORS[method]
-    if extractor is None and method == "llm-v3":
+    if extractor is None and method in __import__("legallm.routing", fromlist=["ROUTED_METHODS"]).ROUTED_METHODS:
         from legallm.routing import get_router
 
-        fn = get_router()  # the Router object exposes .route/.cheap_method for cache reuse
+        fn = get_router(method)  # the Router object exposes .route/.cheap_method for cache reuse
     cfg_sha = config_sha or method_config_sha(method)
     out: list[DocEval] = []
     for i, rec in enumerate(records, start=1):

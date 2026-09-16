@@ -97,8 +97,10 @@ def test_replay_miss_raises():
 
 def test_build_extractors_replay_and_router():
     ext = build_extractors({}, record=False, backend="api")
-    assert set(ext) == {"llm-v2", "llm-v3"}
+    assert set(ext) == {"llm-v1", "llm-v2", "llm-v3", "llm-v4", "llm-v5"}
     assert ext["llm-v3"].cheap is ext["llm-v2"] and ext["llm-v3"].strong.config.model == "claude-opus-5"
+    assert ext["llm-v5"].cheap is ext["llm-v4"] and ext["llm-v5"].strong.config.prompt_version == "v3"
+    assert ext["llm-v4"].wire_version == "2" and ext["llm-v2"].wire_version == "1"
 
 
 def test_committed_recordings_cover_the_fixture_briefs(tmp_path):

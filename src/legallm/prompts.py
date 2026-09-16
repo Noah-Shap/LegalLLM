@@ -161,9 +161,46 @@ Extract the facts section of this brief per the instructions. Return ONLY a JSON
 you were given. Copy anchors and citations character-for-character from the document.\
 """
 
+# ---------------------------------------------------------------------------
+# v3 — v2 with structured record citations (wire schema 2). The only textual change is the
+# record_citations bullet: the model puts the printed string in `as_printed` and the individual
+# pages in `pages`, so a list or range is never rewritten (taxonomy L3 fixed at the source).
+# ---------------------------------------------------------------------------
+
+_V2_RECORD_CITES_BULLET = """\
+- record_citations: record cites that appear inside the facts section, copied
+  EXACTLY AS PRINTED, e.g. "1-ER-102", "9-ER2042" (keep a missing hyphen),
+  "5-ER-873-876" (keep the full range; never expand "1-ER-106-07" into
+  "1-ER-107"), "App. 240", "Dkt. 30". Do not include "Id.", "id.", "Ibid.",
+  "supra" or other short-form references. Do not add cites from outside the
+  facts section.
+"""
+
+_V3_RECORD_CITES_BULLET = """\
+- record_citations: every record cite that appears inside the facts section, as
+  an object with three fields. as_printed: the citation EXACTLY AS PRINTED,
+  character-for-character, keeping a list or range as ONE string exactly as it
+  appears ("2-ER-104, 106", "5-ER-873-876", "1-ER-106-07", "9-ER2042" with its
+  missing hyphen, "App. 240", "Dkt. 30"). prefix: the record/volume prefix as
+  printed ("2-ER", "App.", "Dkt."), or null. pages: the individual page numbers
+  the citation refers to, as printed strings (["104", "106"]; a range as its two
+  endpoints ["873", "876"]; "1-ER-106-07" -> ["106", "07"]). Never write an
+  expanded or single page into as_printed when the document prints a list or
+  range: the expansion belongs in pages only. Do not include "Id.", "id.",
+  "Ibid.", "supra" or other short-form references. Do not add cites from
+  outside the facts section.
+"""
+
+assert _V2_RECORD_CITES_BULLET in FACTS_SYSTEM_V2, "prompt v2 record_citations bullet not found; v3 derives from it"
+FACTS_SYSTEM_V3 = FACTS_SYSTEM_V2.replace(_V2_RECORD_CITES_BULLET, _V3_RECORD_CITES_BULLET, 1)
+FACTS_USER_V3 = FACTS_USER_V2
+
 PROMPTS: dict[str, tuple[str, str]] = {
     "v1": (FACTS_SYSTEM_V1, FACTS_USER_V1),
     "v2": (FACTS_SYSTEM_V2, FACTS_USER_V2),
+    "v3": (FACTS_SYSTEM_V3, FACTS_USER_V3),
 }
 PROMPT_VERSIONS: tuple[str, ...] = tuple(PROMPTS)
 PROMPT_VERSION = "v2"  # default for new extractions
+# which wire schema each prompt version fills (schema.py WIRE_MODELS)
+PROMPT_WIRE: dict[str, str] = {"v1": "1", "v2": "1", "v3": "2"}
