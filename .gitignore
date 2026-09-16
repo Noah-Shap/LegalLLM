@@ -56,3 +56,4 @@ desktop.ini
 htmlcov/
 .coverage
 coverage.xml
+logs/*.jsonl

@@ -33,6 +33,8 @@ converted into a deployed LLM extraction app with a disciplined eval loop (Phase
   `llm_extractor.py` (C2, Sonnet 5, anchor-based spans, provenance), `prompts.py` (versioned prompts),
   `claude_cli.py` (headless `claude -p` transport; strips API key, runs in an empty temp dir).
   `routing.py` (`llm-v3`: Sonnet 5 at prompt v2 first, Opus 5 on anchor failure / validator flag / error; both passes in provenance).
+  `api.py` (C10 FastAPI: `POST /extract` PDF/text → extraction + validation [+ rules baseline], `GET /health`; JSONL request log, rate limit),
+  `ui_app.py` (C11 Streamlit side-by-side UI; in-process or via `LEGALLM_API_URL`), `observability.py` (C12 `evals/dashboard.md` from the request log + eval runs).
   `gold.py` + `labeler_app.py` (C5 gold manifest, verification, Streamlit labeler).
   `extraction_eval.py` (C6/C7: span IoU, auto-rating, fidelity, cost/latency; cached; `legallm-xeval`),
   `results_page.py` (evals/RESULTS.md renderer).
@@ -64,11 +66,15 @@ legallm-xeval --render evals/runs/<id>                       # curated evals/RES
 legallm-judge --run evals/runs/<id> --methods rules_v2 llm-v2 --backend claude-cli   # Opus 5 judge -> evals/judge/
 legallm-gold prefill --judge evals/judge/<run>.jsonl ; legallm-gold accept-judge --policies nonbrief ...   # pre-labels
 legallm-downstream --run evals/runs/<id> --methods rules_v2 llm-v2   # resolver % + BM25 R@10 per span source -> <run>/downstream.md (offline)
+LEGALLM_LLM_BACKEND=claude-cli legallm-api --port 8000              # service; env: LEGALLM_DEFAULT_METHOD (llm-v3), LEGALLM_REQUEST_LOG (logs/requests.jsonl)
+legallm-ui                                                           # Streamlit UI (in-process); LEGALLM_API_URL=http://host:8000 to use the service
+legallm-dashboard                                                    # evals/dashboard.md from logs/requests.jsonl + evals/runs
 ```
 
 ## Environment
 
 - `CL_TOKEN` — CourtListener API token (pipeline only; never literal in code).
+- `ANTHROPIC_API_KEY` — Messages API backend (deploy); `LEGALLM_LLM_BACKEND=claude-cli` uses the subscription login instead (local only).
 - `TESSDATA_PREFIX` — Tesseract data dir (OCR only).
 - Conventions: `pathlib.Path` everywhere; all OCR thresholds go through `ocr_decision.py`;
   commit messages `chore(repo): …`, `docs(state): …`, `feat(...): …`.
