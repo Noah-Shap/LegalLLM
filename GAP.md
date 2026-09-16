@@ -1,5 +1,7 @@
 # GAP — intent.md v0.2 §5 vs STATE.md (commit 9ce39a7, 2026-09-14)
 
+> **Status (2026-09-16):** build-order items 1–14 delivered (see `docs/intent.md` §11 for each); the hosted demo (C14 push + API key) is the one open action. This file is kept as the original gap map.
+
 > Replaces the provisional GAP.md Claude Code wrote while `intent.md` was 0 bytes.
 > Columns: **Exists?** cites `STATE.md` §; **Reuse** = existing code to build on; **Effort** S ≤ 1 h · M 1–3 h · L > 3 h; **Wk** = when.
 

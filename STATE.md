@@ -271,3 +271,12 @@ Unique `search_result_id` in the 2k parquet: 1,506 of 1,599 rows (93 duplicate i
 5. CI has never run because the workflow targets `main` while the branch is `master`. Rename branch to `main`, or change the workflow? (Not changed this session.)
 6. Repo name: keep `LegalLLM` for the public repo, or choose a product name?
 7. Which GitHub account should own the public repo — `Noah-Shap` (current) or `noahmattshap` (also authenticated)?
+
+
+## 12 · Phase-1 outcome (2026-09-16, appended)
+
+The inventory above is the 2026-09-14 snapshot. Phase 1 (build-order items 1–14 in `GAP.md` §D) is complete except the
+hosted demo: LLM extractor (`llm-v1` → `llm-v2` → routed `llm-v3`), 120-doc gold set (35 human + 85 judge-accepted,
+κ 0.885), extraction eval harness, Opus 5 judge, downstream eval, FastAPI service + Streamlit UI + request log,
+CI smoke gate, injection guard, deploy package. Current numbers: `evals/RESULTS.md`; history: `docs/intent.md` §11;
+tradeoffs: `ARCHITECTURE.md`. Tests: 472 offline.
