@@ -36,7 +36,7 @@ Repo, results table, failure taxonomy and the tradeoffs write-up: <link>. Demo: 
 ## Repo publish checklist
 
 - [x] Repo public (`github.com/Noah-Shap/LegalLLM`), README retitled, results + limitations + how-to-run
-- [x] CI green on `main`; deliberately regressed branch fails the gate (`demo/gate-regression`)
+- [x] CI green on `main`; deliberately regressed PR #1 fails the gate (run 35051634717; PR closed, branch kept)
 - [ ] Hugging Face Space pushed with `ANTHROPIC_API_KEY` secret (Noah; see `deploy/README.md`) → paste URL into README "Live demo"
 - [ ] LinkedIn post (above) with the two links
 - [ ] 60-s demo recorded from the script above

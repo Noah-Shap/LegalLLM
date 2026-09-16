@@ -120,7 +120,7 @@ legallm-dashboard                                        # evals/dashboard.md fr
 The CI gate replays frozen model responses for three synthetic briefs and fails the build if span IoU drops
 more than 2 points, citation fidelity more than 1 point, or any extractor errors — see
 [`evals/ci/`](evals/ci/) and the `gate` job in [`.github/workflows/ci.yml`](.github/workflows/ci.yml). A
-deliberately regressed branch produces:
+deliberately regressed branch ([PR #1](https://github.com/Noah-Shap/LegalLLM/pull/1), [failed run](https://github.com/Noah-Shap/LegalLLM/actions/runs/35051634717)) produces:
 
 ```
 ## Smoke regression gate: FAIL
