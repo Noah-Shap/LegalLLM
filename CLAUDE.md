@@ -32,6 +32,7 @@ converted into a deployed LLM extraction app with a disciplined eval loop (Phase
   `single_doc.py` (one PDF/text → extraction + validation; extractor registry for LLM methods).
   `llm_extractor.py` (C2, Sonnet 5, anchor-based spans, provenance), `prompts.py` (versioned prompts),
   `claude_cli.py` (headless `claude -p` transport; strips API key, runs in an empty temp dir).
+  `routing.py` (`llm-v3`: Sonnet 5 at prompt v2 first, Opus 5 on anchor failure / validator flag / error; both passes in provenance).
   `gold.py` + `labeler_app.py` (C5 gold manifest, verification, Streamlit labeler).
   `extraction_eval.py` (C6/C7: span IoU, auto-rating, fidelity, cost/latency; cached; `legallm-xeval`),
   `results_page.py` (evals/RESULTS.md renderer).
@@ -54,7 +55,8 @@ mypy src/legallm/                            # must be clean (CI gate)
 legallm --query "..." --max_docs N [--no_scope_filter] [--resolve_citations] [--enable_ocr]   # LIVE API — see R5
 legallm-eval --parquet data/processed/facts_dataset_2k.parquet --baselines popularity bm25
 legallm-extract data/raw/pdfs/<id>.pdf [--json --out out.json] [--method rules_v2]   # single doc, offline
-legallm-extract <pdf> --method llm-v1 --backend claude-cli   # Sonnet 5 via headless claude -p (subscription, no API credits)
+legallm-extract <pdf> --method llm-v2 --backend claude-cli   # Sonnet 5 via headless claude -p (subscription, no API credits)
+legallm-extract <pdf> --method llm-v3 --backend claude-cli   # routed: Sonnet 5, escalate to Opus 5 when the cheap pass fails
 legallm-extract <pdf> --method llm-v1                        # same via Messages API (needs funded ANTHROPIC_API_KEY)
 legallm-gold stats | verify | label                          # gold set (evals/gold/gold_v1.jsonl); label = Streamlit UI
 legallm-xeval --methods rules_v2 llm-v1 --subset labeled --backend claude-cli   # extraction eval -> evals/runs/<id>/report.md

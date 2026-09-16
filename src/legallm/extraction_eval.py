@@ -196,6 +196,10 @@ def method_config_sha(method: str) -> str:
     payload = method
     if method.startswith("llm-"):
         from legallm.llm_extractor import get_extractor, method_version
+        from legallm.routing import ROUTED_METHOD, get_router
+
+        if method == ROUTED_METHOD:
+            return hashlib.sha256(get_router().config_payload.encode()).hexdigest()[:12]
 
         try:
             ex = get_extractor(method_version(method))
@@ -266,6 +270,21 @@ def load_doc_texts(records: list[GoldRecord], *, progress: bool = False) -> dict
     return texts
 
 
+def _run_extractor(fn: Any, text: str, doc_type_id: str, cache: ExtractionCache | None) -> FactsExtraction:
+    """Call the extractor; a routed extractor reuses the cheap tier's cached result when the cache has it."""
+    cheap_method = getattr(fn, "cheap_method", None)
+    route = getattr(fn, "route", None)
+    if cheap_method and route is not None and cache is not None:
+        from legallm.gold import doc_sha1
+
+        entry = cache.get(cheap_method, ExtractionCache.key(method_config_sha(cheap_method), doc_sha1(text)))
+        if entry is not None:
+            out: FactsExtraction = route(text, doc_type_id, cheap=FactsExtraction.model_validate(entry["extraction"]))
+            return out
+    result: FactsExtraction = fn(text, doc_type_id)
+    return result
+
+
 def run_method(
     records: list[GoldRecord],
     method: str,
@@ -283,6 +302,10 @@ def run_method(
     from legallm.single_doc import EXTRACTORS
 
     fn = extractor or EXTRACTORS[method]
+    if extractor is None and method == "llm-v3":
+        from legallm.routing import get_router
+
+        fn = get_router()  # the Router object exposes .route/.cheap_method for cache reuse
     cfg_sha = config_sha or method_config_sha(method)
     out: list[DocEval] = []
     for i, rec in enumerate(records, start=1):
@@ -300,7 +323,7 @@ def run_method(
             continue
         t0 = time.perf_counter()
         try:
-            ex = fn(text, rec.doc_type_id)
+            ex = _run_extractor(fn, text, rec.doc_type_id, cache)
         except Exception as e:  # extractor failure is a measured outcome, not a crash
             out.append(
                 evaluate_doc(
@@ -309,6 +332,8 @@ def run_method(
             )
             continue
         latency = time.perf_counter() - t0
+        if "routing" in (ex.provenance or {}) and ex.provenance.get("latency_s") is not None:
+            latency = float(ex.provenance["latency_s"])  # route total; the cheap tier may have come from cache
         if cache is not None:
             cache.put(method, key, ex, latency)
         out.append(evaluate_doc(rec, method, ex, text, latency_s=latency))

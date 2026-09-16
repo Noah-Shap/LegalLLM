@@ -440,11 +440,22 @@ def default_extractor() -> LlmExtractor:
     return get_extractor(PROMPT_VERSION)
 
 
+def current_overrides() -> dict[str, Any]:
+    """The config overrides set by ``configure_default`` (read-only copy; used by the routed tier)."""
+    return dict(_overrides)
+
+
 def configure_default(**overrides: Any) -> LlmExtractor:
     """Set config overrides (e.g. backend='claude-cli', effort='high') for every prompt version."""
     _overrides.clear()
     _overrides.update(overrides)
     _extractors.clear()
+    try:  # the routed extractor (llm-v3) caches both tiers; rebuild it under the new overrides
+        from legallm.routing import reset_router
+
+        reset_router()
+    except ImportError:  # pragma: no cover
+        pass
     return default_extractor()
 
 

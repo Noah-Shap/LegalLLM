@@ -166,3 +166,29 @@ targets are citations the gold facts section contains. llm-v2's remaining downst
 empty span → no targets) and 10 citations the resolver cache has never seen (not queried, R5): target recall
 67.6% at 95.9% precision. Retrieval (BM25 Recall@10) is flat across span sources including the gold
 span, so the retrieval task's ceiling is the retriever, not extraction — consistent with the April M4 result.
+
+## H. Routing (llm-v3, item 11, `evals/runs/labeled-v3_20260916-001818_90b33c`)
+
+**What routes.** Trigger set: `anchor_not_found` (has_facts said yes, span not located — class L2), `span_text_mismatch`
+/ `span_out_of_bounds` (validator), `error` (cheap call failed — L5). `unsupported_citation` is deliberately *not* a
+trigger: L3 list/range expansion fires on ~20 % of docs, the judge rated those spans correct, and the strong tier
+shares the habit. A cheap-tier `has_facts = false` never escalates (judge: 33/33 correct).
+
+**What happened on the gold set.** 8 of 120 documents escalated, every one on `anchor_not_found` — exactly the 8
+residual L2 failures from §D (g033, g034, g056, g067, g078, g080, g092, g097). Opus 5 (prompt v2, effort high)
+located a span on all 8: seven at IoU ≥ 0.99 against gold; g034 at 0.52 (it started at a later heading than the
+gold span, which begins at 3,641 — a partially_correct outcome rather than an empty span). No escalation on any
+other document, so llm-v3 = llm-v2 on 112/120 docs by construction.
+
+**Effect.** IoU 0.912 → **0.975**; IoU ≥ 0.9 on 90.0% → **95.8%**;
+span found 65.8% → 72.5% (the remaining 33 no-span docs are the no-facts
+documents). Paired vs rules_v2: wins 77 / ties 40 / losses 3. Cost 0.274 → 0.331 $/doc
+(CLI estimate; the 8 Opus calls total $9.35, $0.44–2.50 each); latency 34.4 → 37.4 s/doc
+mean, ≈ 99 s on an escalated document. Downstream: resolved-target recall vs the gold span 67.6% →
+79.0% at 96.5% precision; BM25 Recall@10 0.145 (gold span 0.143) — flat, as in §G.
+
+**Why L2 happens at all (and why routing rather than a prompt fix).** The 8 failures are long briefs where Sonnet's
+anchors quote text that the PDF layer rendered differently (dropped hyphens, merged headers, ligatures) — the 8/6/4-word
+relaxation in llm-v2 already recovered 9 similar cases; what remained needed a model that copies the printed text
+exactly. A third prompt iteration on Sonnet would be guesswork; escalation is measurable, costs 6.7 % of docs, and
+keeps the cheap tier's verdict everywhere it was right.
