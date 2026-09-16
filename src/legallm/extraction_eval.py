@@ -31,6 +31,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from legallm.baseline_adapter import RULES_VERSION
 from legallm.build_manifest import create_manifest, finalize_manifest, write_manifest
 from legallm.gold import GoldRecord, document_text, load_gold
 from legallm.schema import FactsExtraction
@@ -318,7 +319,7 @@ def run_method(
             ex = FactsExtraction.model_validate(entry["extraction"])
             out.append(evaluate_doc(rec, method, ex, text, latency_s=entry.get("latency_s"), cached=True))
             continue
-        if offline:
+        if offline and method != RULES_VERSION:  # only the local rules extractor may run uncached
             out.append(evaluate_doc(rec, method, None, text, error="offline: not in cache"))
             continue
         t0 = time.perf_counter()

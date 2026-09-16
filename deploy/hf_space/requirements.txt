@@ -1,0 +1,1 @@
+legallm[api,label] @ git+https://github.com/Noah-Shap/LegalLLM.git@main

@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from legallm.baseline_adapter import RULES_VERSION, extract_rules, preprocess_text
+from legallm.guard import apply_guard
 from legallm.llm_extractor import PROMPT_VERSIONS, LlmExtractionError, llm_method
 from legallm.pipeline import doc_needs_ocr, extract_text_best, get_pdf_page_count_fast, normalize_text
 from legallm.routing import ROUTED_METHOD, routed_method
@@ -117,7 +118,7 @@ def extract_from_text(
     needs_ocr, details = doc_needs_ocr(clean, page_count=page_count)
     doc_text = preprocess_text(clean)
     extraction = EXTRACTORS[method](doc_text, doc_type_id)
-    report = validate_extraction(extraction, doc_text, require_facts=require_facts)
+    report = apply_guard(validate_extraction(extraction, doc_text, require_facts=require_facts), doc_text, extraction)
     return SingleDocResult(
         source=source,
         method=method,

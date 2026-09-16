@@ -35,6 +35,7 @@ from pydantic import BaseModel, Field
 
 from legallm import __version__
 from legallm.baseline_adapter import RULES_VERSION
+from legallm.guard import apply_guard
 from legallm.llm_extractor import LlmExtractionError, configure_default
 from legallm.single_doc import EXTRACTORS, NoTextError, SingleDocResult, extract_from_file, extract_from_text
 from legallm.validators import validate_extraction
@@ -55,13 +56,14 @@ class Settings:
     max_upload_mb: float = float(os.environ.get("LEGALLM_MAX_UPLOAD_MB", "20"))
     rate_limit_per_min: int = int(os.environ.get("LEGALLM_RATE_LIMIT_PER_MIN", "30"))
     compare_default: bool = True
+    guard_mode: str = os.environ.get("LEGALLM_GUARD_MODE", "flag")  # "flag" | "block"
 
 
 def run_baseline(result: SingleDocResult, doc_type_id: str = "UNKNOWN") -> SingleDocResult:
     """rules_v2 on the *same* ``doc_text`` the main result's offsets refer to (no re-normalisation)."""
     t0 = time.perf_counter()
     ex = EXTRACTORS[RULES_VERSION](result.doc_text, doc_type_id)
-    rep = validate_extraction(ex, result.doc_text, require_facts=False)
+    rep = apply_guard(validate_extraction(ex, result.doc_text, require_facts=False), result.doc_text, ex)
     return SingleDocResult(
         source=result.source,
         method=RULES_VERSION,
@@ -288,6 +290,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "llm_available": ok,
             "llm_detail": detail,
             "request_log": str(s.request_log) if s.request_log else None,
+            "guard_mode": s.guard_mode,
         }
 
     @app.get("/methods")
@@ -361,6 +364,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     assert text is not None
                     result = extract_from_text(
                         text, method=method, doc_type_id=doc_type_id, source=filename, require_facts=False
+                    )
+                if s.guard_mode == "block" and not result.validation.checks.get("injection_not_suspected", True):
+                    pats = [f for f in result.validation.flags if f.startswith("injection_suspected:")]
+                    raise HTTPException(
+                        status_code=422, detail=f"document refused: prompt-injection suspected ({', '.join(pats)})"
                     )
                 baseline: SingleDocResult | None = None
                 if compare and method != RULES_VERSION:

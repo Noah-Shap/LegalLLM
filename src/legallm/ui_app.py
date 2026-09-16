@@ -29,6 +29,7 @@ API_URL = os.environ.get("LEGALLM_API_URL", "").rstrip("/")
 DEFAULT_METHOD = os.environ.get("LEGALLM_DEFAULT_METHOD", "llm-v3")
 BACKEND = os.environ.get("LEGALLM_LLM_BACKEND", "api")
 LOG_PATH = Path(os.environ.get("LEGALLM_REQUEST_LOG", "logs/requests.jsonl"))
+MAX_PER_SESSION = int(os.environ.get("LEGALLM_UI_MAX_PER_SESSION", "20"))
 
 
 def _result_dict(r: SingleDocResult) -> dict[str, Any]:
@@ -162,9 +163,7 @@ def _span_card(title: str, res: dict[str, Any] | None, doc_text: str | None) -> 
         st.markdown(f"**Parties:** {', '.join(ex.get('parties') or []) or '—'}")
         st.markdown(f"**Posture:** {ex.get('procedural_posture') or '—'}")
     if ex.get("key_events"):
-        st.dataframe(
-            [{"date": e.get("date"), "event": e.get("description")} for e in ex["key_events"]], width="stretch"
-        )
+        st.dataframe([{"date": e.get("date"), "event": e.get("text")} for e in ex["key_events"]], width="stretch")
     if ex.get("case_citations") or ex.get("record_citations"):
         st.markdown(
             f"**Case citations ({len(ex.get('case_citations') or [])}):** "
@@ -209,6 +208,11 @@ def main() -> None:
         if method.startswith("llm-") and not ok and not API_URL:
             st.error(f"{method} needs an LLM backend: {detail}")
             return
+        used = int(st.session_state.get("n_requests", 0))
+        if used >= MAX_PER_SESSION:
+            st.error(f"session limit reached ({MAX_PER_SESSION} extractions); reload the page to start a new session")
+            return
+        st.session_state["n_requests"] = used + 1
         upload = (up.name, up.getvalue()) if up is not None else None
         with st.spinner(f"running {method}…"):
             try:
