@@ -46,8 +46,17 @@ Effect on the gold set: 8 escalations (6.7 % of documents), 8 recovered spans, I
 $0.331 per document. Escalated documents take ≈ 99 s end to end (both passes). Both passes are kept in provenance
 so the log can show which tier answered and why.
 
-Prompt v1 and v2 are frozen and content-hashed; the hash is part of every cache key, run manifest and log line. A
-prompt change is a new version with a before/after row in `evals/iterations.md`.
+Prompts are frozen and content-hashed; the hash is part of every cache key, run manifest and log line. A prompt change
+is a new version with a before/after row in `evals/iterations.md`. The lineage is linear, one change per step: `llm-v1`
+prompt v1 · `llm-v2` prompt v2 · `llm-v3` routing · `llm-v4` prompt v3 · `llm-v5` prompt v3 + routing.
+
+**Prompt v3: fix the schema, not the instruction.** Prompt v2 told the model not to expand citation lists and ranges
+and it did anyway (150 expansions on llm-v3). Prompt v3 returns each record citation as an object — the string exactly
+as printed plus the pages it refers to — so the expansion has a field of its own. Non-verbatim citations fell to 17
+(strict fidelity 0.964 → 0.992) with span IoU unchanged (0.975 → 0.978). The price is output
+size: the objects roughly triple the output tokens, so cost $0.331 → $0.431 and latency 37 → 73 s per
+document. llm-v5 is the service default because the product is the structured record, not just the span; llm-v3 stays
+registered for span-only use.
 
 ## 5. Validators are the product boundary
 
@@ -87,9 +96,9 @@ request log stores metadata and a document hash, never text.
 
 ## 8. Cost, latency, scaling
 
-Per document at API list prices (Sonnet 5 $2/$10 per Mtok, Opus 5 $5/$25): llm-v2 ≈ $0.27, llm-v3 ≈ $0.33, i.e.
-**≈ $330 per 1,000 documents** with routing, ≈ $270 without, versus $0 for the rules baseline. Latency is
-model-bound (34–37 s per document sequentially); throughput scales with concurrency, not per-request work, so a
+Per document at API list prices (Sonnet 5 $2/$10 per Mtok, Opus 5 $5/$25): llm-v2 ≈ $0.27, llm-v3 ≈ $0.33, llm-v5 ≈
+$0.43, i.e. **≈ $432 per 1,000 documents** for the default (≈ $330 span-only), versus $0 for the rules baseline.
+Latency is model-bound (37 s span-only, 73 s with structured citations, per document sequentially); throughput scales with concurrency, not per-request work, so a
 batch of 1,000 documents at 8 concurrent requests is roughly 1.5 hours. Levers, in order: prompt caching of the
 fixed system prompt (already in place through the API's cache fields; the document itself is not cacheable across
 requests), lower effort on the cheap tier for short briefs, and a batch endpoint for offline builds. The resolver's
@@ -102,6 +111,8 @@ but bills nothing per token; that backend cannot be deployed.
 
 - A retriever that uses the structured fields (parties, posture, events) rather than the masked span text — the
   downstream eval showed span quality is no longer the bottleneck.
-- A prompt v3 that fixes citation list expansion at the source, measured against the support metric.
+- ~~A prompt v3 that fixes citation list expansion at the source~~ — done (llm-v4/llm-v5, §4).
+- A cheaper way to carry the citation objects: the 2× latency is output tokens; a compact wire form (prefix + page list
+  only, printed string reconstructed) would cut it if the verbatim check can be kept.
 - A second annotator on the 35-doc overlap to turn κ into inter-annotator agreement rather than judge-vs-one-human.
 - Phase 2: an agentic layer only if a task appears that a fixed workflow cannot express.

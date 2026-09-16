@@ -18,8 +18,9 @@ Upload a U.S. court brief (PDF or text) and see the **Statement of Facts** span 
 rule-based baseline, with deterministic validator flags (span integrity, citation fidelity, prompt-injection guard).
 
 - `rules_v2` runs without any model and is always available.
-- `llm-v3` = Sonnet 5 first, escalated to Opus 5 when the cheap pass cannot locate its own anchors; needs the
-  `ANTHROPIC_API_KEY` secret on this Space.
+- `llm-v5` (default) = Sonnet 5 first, escalated to Opus 5 when the cheap pass cannot locate its own anchors, with
+  record citations returned as printed plus their page list; `llm-v3` is the faster span-focused route. Both need
+  the `ANTHROPIC_API_KEY` secret on this Space.
 - Requests are capped per session; document text is never logged.
 
 Source, evals and results: <https://github.com/Noah-Shap/LegalLLM>.

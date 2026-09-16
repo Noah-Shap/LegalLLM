@@ -26,7 +26,7 @@ from legallm.baseline_adapter import RULES_VERSION
 from legallm.single_doc import EXTRACTORS, SingleDocResult, extract_from_file, extract_from_text
 
 API_URL = os.environ.get("LEGALLM_API_URL", "").rstrip("/")
-DEFAULT_METHOD = os.environ.get("LEGALLM_DEFAULT_METHOD", "llm-v3")
+DEFAULT_METHOD = os.environ.get("LEGALLM_DEFAULT_METHOD", "llm-v5")
 BACKEND = os.environ.get("LEGALLM_LLM_BACKEND", "api")
 LOG_PATH = Path(os.environ.get("LEGALLM_REQUEST_LOG", "logs/requests.jsonl"))
 MAX_PER_SESSION = int(os.environ.get("LEGALLM_UI_MAX_PER_SESSION", "20"))

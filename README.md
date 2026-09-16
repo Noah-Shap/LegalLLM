@@ -17,20 +17,21 @@ LLM methods; the rules baseline runs without one.
 
 ## Results (120 gold documents, `evals/RESULTS.md`)
 
-| | rules_v2 (baseline) | llm-v2 (Sonnet 5) | **llm-v3 (routed)** |
-|---|---:|---:|---:|
-| span IoU vs gold, mean | 0.572 | 0.912 | **0.975** |
-| docs with IoU ≥ 0.9 | 46.7 % | 90.0 % | **95.8 %** |
-| span IoU on the 35 human-labeled docs only | 0.647 | 0.869 | — |
-| citation fidelity (emitted cites found verbatim in the source) | 1.000 | 0.962 | 0.964 |
-| citation support (verbatim or page-number-supported) | 1.000 | 0.985 | 0.986 |
-| structured fields (parties / posture / events per doc) | — | 99 % / 97 % / 7.1 | 99 % / 97 % / 7.2 |
-| resolved-citation **precision** vs the gold facts section | 15.1 % | 95.9 % | **96.5 %** |
-| resolved-citation recall vs the gold facts section | 90.5 % | 67.6 % | 79.0 % |
-| cost / doc (API list price) | $0 | $0.274 | $0.331 |
-| latency / doc | 0.01 s | 34 s | 37 s (≈ 99 s when escalated) |
+| | rules_v2 (baseline) | llm-v2 (Sonnet 5) | llm-v3 (routed) | **llm-v5 (routed, structured cites)** |
+|---|---:|---:|---:|---:|
+| span IoU vs gold, mean | 0.572 | 0.912 | 0.975 | **0.978** |
+| docs with IoU ≥ 0.9 | 46.7 % | 90.0 % | **95.8 %** | 95.0% |
+| span IoU on the 35 human-labeled docs only | 0.647 | 0.869 | — | — |
+| citation fidelity (emitted cites found verbatim in the source) | 1.000 | 0.962 | 0.964 | **0.992** |
+| citation support (verbatim or page-number-supported) | 1.000 | 0.985 | 0.986 | **0.995** |
+| non-verbatim citations emitted | 0 | 152 | 150 | **17** |
+| structured fields (parties / posture / events per doc) | — | 99 % / 97 % / 7.1 | 99 % / 97 % / 7.2 | 99% / 98% / 6.9 |
+| resolved-citation **precision** vs the gold facts section | 15.1 % | 95.9 % | 96.5 % | **96.5%** |
+| resolved-citation recall vs the gold facts section | 90.5 % | 67.6 % | 79.0 % | 79.0% |
+| cost / doc (API list price) | $0 | $0.274 | $0.331 | $0.431 |
+| latency / doc | 0.01 s | 34 s | 37 s | 73 s (≈ 150 s when escalated) |
 
-Paired on the same documents, llm-v3 beats the rules baseline on 77, ties on 40, loses on 3.
+Paired on the same documents, llm-v3 beats the rules baseline on 77, ties on 40, loses on 3; llm-v5 on 79 / 37 / 4. llm-v5 is the service default; llm-v3 is the faster, cheaper choice when only the span matters.
 
 **Headline finding.** The rule-based extractor looked good on the pipeline's old downstream metric — it resolved at
 least one case citation on 42.5 % of documents versus 26.7 % for llm-v3 — but only **15 % of those citations
@@ -49,9 +50,11 @@ and it is stated here rather than implied away.
 the cover or table of contents (34), spill into the Argument (19), or are emitted on documents that are not
 briefs (25 with no facts section at all); every `low`-confidence rules span was wrong (23/23). The LLM's residual
 errors were 8 documents where Sonnet's quoted anchors could not be located in the PDF text (dropped hyphens,
-merged headers); routing those 8 to Opus 5 recovered all of them, which is what llm-v3 is. Still open: citation
-list/range expansion ("App. 1494, 1503" → "App. 1503"), handled by the *support* tier of the validator rather than
-fixed in the prompt; and 10 citations the resolver cache has never seen.
+merged headers); routing those 8 to Opus 5 recovered all of them, which is what llm-v3 is. Citation list/range
+expansion ("App. 1494, 1503" → "App. 1503") resisted a prompt instruction (150 expansions on llm-v3) and was fixed by
+changing the *schema* instead: prompt v3 returns each record citation as printed plus its page list, and the
+expansions fell to 17 (llm-v5). Still open: 10 citations the resolver cache has never seen, and one document where the
+cheap tier's "no facts section" verdict is wrong — the one failure class routing cannot see.
 
 **How the labels were made.** 120 documents: the pipeline's existing 100-doc audit set plus 20 documents where the
 rules found nothing. An Opus 5 judge rated every candidate span with the labeling rubric and proposed corrected
@@ -67,7 +70,7 @@ PDF / text ──► pypdf → PyMuPDF → (OCR) ──► normalize + preproces
                                                        │
                           ┌────────────────────────────┼───────────────────────────────┐
                           ▼                                                            ▼
-                 rules_v2 (frozen baseline)                              llm-v3  = Sonnet 5, prompt v2
+                 rules_v2 (frozen baseline)                              llm-v5  = Sonnet 5, prompt v3
                  heading map → merge → validate                          anchors → span located in text
                           │                                              ▼   anchor failure / validator flag / error
                           │                                          escalate → Opus 5, same prompt, effort high
@@ -98,10 +101,10 @@ pip install -e ".[dev]"
 
 legallm-extract brief.pdf --method rules_v2 --json       # no model needed
 export ANTHROPIC_API_KEY=sk-...                          # or, locally: --backend claude-cli (claude.ai login)
-legallm-extract brief.pdf --method llm-v3 --json         # Sonnet 5, Opus 5 on failure
+legallm-extract brief.pdf --method llm-v5 --json         # Sonnet 5 (prompt v3), Opus 5 on failure
 
 legallm-api --port 8000                                  # POST /extract, GET /health
-curl -F file=@brief.pdf -F method=llm-v3 localhost:8000/extract
+curl -F file=@brief.pdf -F method=llm-v5 localhost:8000/extract
 legallm-ui                                               # side-by-side UI (Streamlit)
 ```
 
@@ -109,7 +112,7 @@ Evals (offline where possible; LLM runs are cached by prompt sha × model × doc
 
 ```bash
 legallm-gold stats                                       # gold set: ids + offsets + labels only
-legallm-xeval --methods rules_v2 llm-v2 llm-v3 --subset labeled --offline   # metrics from cache
+legallm-xeval --methods rules_v2 llm-v3 llm-v5 --subset labeled --offline   # metrics from cache
 legallm-xeval --render evals/runs/<run_id>               # -> evals/RESULTS.md
 legallm-downstream --run evals/runs/<run_id>             # resolver % + BM25 Recall@10 per span source
 legallm-judge --run evals/runs/<run_id> --methods rules_v2 llm-v2   # Opus 5 judge (needs a backend)

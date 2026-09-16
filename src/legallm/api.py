@@ -1,7 +1,7 @@
 """C10 service: ``POST /extract`` (PDF or text) → ``FactsExtraction`` + validation; ``GET /health``.
 
     legallm-api [--host 0.0.0.0 --port 8000]          # uvicorn
-    curl -F file=@brief.pdf -F method=llm-v3 http://localhost:8000/extract
+    curl -F file=@brief.pdf -F method=llm-v5 http://localhost:8000/extract
     curl -H 'content-type: application/json' -d '{"text": "...", "method": "rules_v2"}' http://localhost:8000/extract
 
 Every request is appended to a JSONL log (``LEGALLM_REQUEST_LOG``, default ``logs/requests.jsonl``): method,
@@ -50,7 +50,7 @@ DEFAULT_LOG = Path("logs/requests.jsonl")
 
 @dataclass
 class Settings:
-    default_method: str = os.environ.get("LEGALLM_DEFAULT_METHOD", "llm-v3")
+    default_method: str = os.environ.get("LEGALLM_DEFAULT_METHOD", "llm-v5")
     llm_backend: str = os.environ.get("LEGALLM_LLM_BACKEND", "api")
     request_log: Path = field(default_factory=lambda: Path(os.environ.get("LEGALLM_REQUEST_LOG", str(DEFAULT_LOG))))
     max_upload_mb: float = float(os.environ.get("LEGALLM_MAX_UPLOAD_MB", "20"))
