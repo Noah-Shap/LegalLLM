@@ -8,6 +8,8 @@ import pytest
 
 from legallm.citation_resolver import CitationCache
 from legallm.downstream_eval import (
+    QUERY_BUILDERS,
+    build_query,
     format_downstream,
     load_modeling_split,
     main,
@@ -201,3 +203,66 @@ class TestRun:
         assert rc == 0
         out = capsys.readouterr().out
         assert "rules_v2:" in out and "gold:" in out and "downstream.md" in out
+
+
+class TestQueryBuilders:
+    def _ex(self):
+        from legallm.schema import FactsExtraction, FactsSpan, KeyEvent
+
+        return FactsExtraction(
+            extractor_version="t",
+            confidence="high",
+            facts_span=FactsSpan(start=0, end=5, text="abcde"),
+            parties=["Tenant", "Landlord"],
+            procedural_posture="Appeal from an eviction judgment.",
+            key_events=[KeyEvent(date="2020", text="lease signed"), KeyEvent(date=None, text="rent unpaid")],
+        )
+
+    def test_builders(self):
+        span = "The tenant sued. See Smith v. Jones, 500 U.S. 100 (1991). Rent was unpaid."
+        ex = self._ex()
+        assert "500 U.S. 100" not in build_query("narrative", span, None)
+        assert build_query("fields", span, None) is None  # no extraction -> not applicable
+        f = build_query("fields", span, ex)
+        assert f.startswith("Appeal from an eviction judgment. lease signed rent unpaid Tenant Landlord")
+        assert build_query("fields3", span, ex).count("eviction") == 3
+        assert build_query("fields+narrative", span, ex).endswith("Rent was unpaid.")
+        assert build_query("events", span, ex) == "lease signed rent unpaid"
+        with pytest.raises(KeyError):
+            build_query("nope", span, ex)
+        assert "narrative" in QUERY_BUILDERS and len(QUERY_BUILDERS) == 7
+
+    def test_run_with_builders(self, tmp_path):
+        from legallm.extraction_eval import run_eval
+
+        run_dir = run_eval(
+            gold_path=GOLD,
+            methods=["rules_v2", "llm-fake"],
+            subset="all",
+            runs_dir=tmp_path / "runs",
+            cache_dir=None,
+            extractors={"llm-fake": _fake_llm},
+        )
+        texts = {}
+        for line in GOLD.read_text(encoding="utf-8").splitlines():
+            r = json.loads(line)
+            texts[r["gold_id"]] = Path(r["pdf_path"]).read_text(encoding="utf-8")
+        exs = {"llm-fake": {g: self._ex() for g in texts}}
+        out = run_downstream(
+            run_dir,
+            methods=["rules_v2", "llm-fake"],
+            gold_path=GOLD,
+            parquet=_parquet(tmp_path),
+            cache_path=_cache(tmp_path),
+            split_cache=tmp_path / "split.parquet",
+            doc_texts=texts,
+            query_builders=QUERY_BUILDERS,
+            extractions=exs,
+        )
+        qb = out["query_builders"]
+        assert set(qb) == {"llm-fake"} and set(qb["llm-fake"]) == set(QUERY_BUILDERS)
+        r = qb["llm-fake"]["fields3"]
+        assert r["n"] == out["meta"]["n_queries"] and r["wins"] + r["ties"] + r["losses"] == r["n"]
+        assert qb["llm-fake"]["narrative"]["wins"] == 0 and qb["llm-fake"]["narrative"]["losses"] == 0
+        md = (run_dir / "downstream.md").read_text(encoding="utf-8")
+        assert "## Query builders (plan 1A)" in md and "| llm-fake |" in md

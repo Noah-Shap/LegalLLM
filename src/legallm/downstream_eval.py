@@ -37,6 +37,7 @@ from legallm.citation_resolver import CitationCache
 from legallm.dataset import load_dataset
 from legallm.eval_harness import evaluate
 from legallm.gold import GoldRecord, load_gold
+from legallm.schema import FactsExtraction
 
 GOLD_METHOD = "gold"
 DEFAULT_PARQUET = Path("data/processed/facts_dataset_2k.parquet")
@@ -125,6 +126,92 @@ def load_modeling_split(parquet: Path, *, split_cache: Path | None = None, refre
 
 
 # ---------------------------------------------------------------------------
+# Query builders (plan item 1A): what text stands for the document when retrieving
+# ---------------------------------------------------------------------------
+
+
+def _fields_text(ex: FactsExtraction | None) -> str:
+    """Posture + event texts + parties from a structured extraction (empty if none)."""
+    if ex is None:
+        return ""
+    parts: list[str] = []
+    if ex.procedural_posture:
+        parts.append(ex.procedural_posture)
+    parts.extend(ev.text for ev in ex.key_events if ev.text)
+    parts.extend(ex.parties)
+    return " ".join(parts)
+
+
+def _events_text(ex: FactsExtraction | None) -> str:
+    return " ".join(ev.text for ev in ex.key_events if ev.text) if ex is not None else ""
+
+
+def build_query(builder: str, span_text: str, ex: FactsExtraction | None) -> str | None:
+    """Query text for one builder; ``None`` when the builder needs fields the method does not produce.
+
+    Builders: ``narrative`` (masked span text — the Phase-1 query), ``fields`` / ``fields3`` / ``fields5`` (posture +
+    events + parties, repeated 1/3/5 times), ``fields+narrative`` / ``fields3+narrative`` (fields prepended to the
+    narrative), ``events`` (event texts only).
+    """
+    narrative = mask_citations(span_text) if span_text else ""
+    if builder == "narrative":
+        return narrative
+    if ex is None:
+        return None
+    if builder == "events":
+        return _events_text(ex)
+    weight = 1
+    base = builder
+    if "+narrative" in builder:
+        base = builder.replace("+narrative", "")
+    if base.startswith("fields"):
+        weight = int(base[6:] or "1")
+        fields = " ".join([_fields_text(ex)] * weight)
+        return fields + (" " + narrative if builder.endswith("+narrative") else "")
+    raise KeyError(f"unknown query builder {builder!r}; known: {QUERY_BUILDERS}")
+
+
+QUERY_BUILDERS: tuple[str, ...] = (
+    "narrative",
+    "fields",
+    "fields3",
+    "fields5",
+    "fields+narrative",
+    "fields3+narrative",
+    "events",
+)
+
+
+def load_extractions(
+    methods: list[str],
+    records: dict[str, GoldRecord],
+    doc_texts: dict[str, str],
+    *,
+    cache_dir: Path | None = None,
+    backend: str = "claude-cli",
+) -> dict[str, dict[str, FactsExtraction]]:
+    """Cached extractions per llm method (for their structured fields); rules/gold have none."""
+    from legallm.extraction_eval import DEFAULT_CACHE_DIR, ExtractionCache, method_config_sha
+    from legallm.gold import doc_sha1
+    from legallm.llm_extractor import configure_default
+
+    configure_default(backend=backend)
+    cache = ExtractionCache(cache_dir or DEFAULT_CACHE_DIR)
+    out: dict[str, dict[str, FactsExtraction]] = {}
+    for m in methods:
+        if not m.startswith("llm-"):
+            continue
+        sha = method_config_sha(m)
+        found: dict[str, FactsExtraction] = {}
+        for g, rec in records.items():
+            entry = cache.get(m, ExtractionCache.key(sha, doc_sha1(doc_texts[g])))
+            if entry is not None:
+                found[g] = FactsExtraction.model_validate(entry["extraction"])
+        out[m] = found
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Core
 # ---------------------------------------------------------------------------
 
@@ -158,6 +245,10 @@ def run_downstream(
     doc_texts: dict[str, str] | None = None,
     write: bool = True,
     progress: bool = False,
+    query_builders: tuple[str, ...] | list[str] | None = None,
+    extractions: dict[str, dict[str, FactsExtraction]] | None = None,
+    cache_dir: Path | None = None,
+    backend: str = "claude-cli",
 ) -> dict[str, Any]:
     run_dir = Path(run_dir)
     records = [r for r in load_gold(gold_path) if r.status == "labeled"]
@@ -308,6 +399,48 @@ def run_downstream(
             f"recall@{k}_parquet_targets": sum(v[0] for v in ra.values()) / len(ra) if ra else None,
         }
 
+    # --- 2b. query builders (1A): same index and targets, different query text per llm method ----------
+    builders = tuple(query_builders) if query_builders else ()
+    qb: dict[str, dict[str, dict[str, Any]]] = {}
+    if builders:
+        llm_methods = [m for m in methods if m.startswith("llm-")]
+        if extractions is None:
+            extractions = load_extractions(llm_methods, by_id, doc_texts, cache_dir=cache_dir, backend=backend)
+        for m in llm_methods:
+            exs = extractions.get(m, {})
+            per_builder: dict[str, dict[str, Any]] = {}
+            base_scores: dict[str, tuple[float, float]] | None = None
+            for b in builders:
+                qs = []
+                for g in query_ids:
+                    q = build_query(b, _slice(doc_texts[g], spans[m].get(g)), exs.get(g))
+                    if q is None:
+                        q = ""
+                    qs.append({"row_id": g, "facts_text_masked": q, "targets": sorted(gold_targets[g])})
+                scores = _retrieve(bm25, qs, k)
+                if b == "narrative":
+                    base_scores = scores
+                wins = ties = losses = 0
+                if base_scores is not None and b != "narrative":
+                    for g in query_ids:
+                        a_, b_ = base_scores[g][0], scores[g][0]
+                        if b_ > a_ + 1e-9:
+                            wins += 1
+                        elif a_ > b_ + 1e-9:
+                            losses += 1
+                        else:
+                            ties += 1
+                per_builder[b] = {
+                    "n": len(query_ids),
+                    "n_with_fields": sum(1 for g in query_ids if g in exs),
+                    f"recall@{k}": sum(v[0] for v in scores.values()) / len(scores) if scores else None,
+                    f"mrr@{k}": sum(v[1] for v in scores.values()) / len(scores) if scores else None,
+                    "wins": wins,
+                    "ties": ties,
+                    "losses": losses,
+                }
+            qb[m] = per_builder
+
     # paired vs the first method (rules) on recall@k
     comparisons: list[dict[str, Any]] = []
     a = methods[0]
@@ -339,6 +472,7 @@ def run_downstream(
         "baseline": baseline,
         "summaries": summaries,
         "comparisons": comparisons,
+        "query_builders": qb,
     }
     if write:
         (run_dir / "downstream.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
@@ -426,6 +560,30 @@ def format_downstream(d: dict[str, Any]) -> str:
     for name, fn in rows2:
         L.append(f"| {name} | " + " | ".join(fn(S[m]) for m in ms) + " |")
     L.append("")
+    qb = d.get("query_builders") or {}
+    if qb:
+        L.append(f"## Query builders (plan 1A): same index and targets, different query text (Recall@{k} / MRR@{k})")
+        L.append("")
+        builders = list(next(iter(qb.values())).keys())
+        L.append("| method | " + " | ".join(builders) + " |")
+        L.append("|---|" + "---:|" * len(builders))
+        for m, per in qb.items():
+            cells = []
+            for b in builders:
+                r = per[b]
+                cell = f"{_num(r[f'recall@{k}'])} / {_num(r[f'mrr@{k}'])}"
+                if b != "narrative":
+                    cell += f" ({r['wins']}/{r['ties']}/{r['losses']})"
+                cells.append(cell)
+            L.append(f"| {m} | " + " | ".join(cells) + " |")
+        L.append("")
+        L.append(
+            "Cells: Recall / MRR, then paired wins/ties/losses against that method's own `narrative` query. Fields = "
+            "procedural posture + key-event texts + parties from the method's extraction; a number after `fields` is "
+            "how many times the fields text is repeated (a crude term weight). The checkpoint in "
+            "`docs/plan_next.md` §1A is wins − losses ≥ 8 of 31 for some builder."
+        )
+        L.append("")
     if d["comparisons"]:
         L.append(
             f"Paired Recall@{k} vs `{d['comparisons'][0]['a']}`: "
@@ -470,6 +628,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--split-cache", default="data/processed/facts_dataset_2k.modeling.parquet")
     ap.add_argument("--refresh-split", action="store_true")
     ap.add_argument("--k", type=int, default=10)
+    ap.add_argument(
+        "--query-builders",
+        nargs="*",
+        default=None,
+        help=f"evaluate alternative query texts for llm methods (default: none; 'all' = {' '.join(QUERY_BUILDERS)})",
+    )
+    ap.add_argument("--backend", default="claude-cli", help="backend the cached extractions were made with")
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args(argv)
     try:
@@ -486,6 +651,8 @@ def main(argv: list[str] | None = None) -> int:
         refresh_split=args.refresh_split,
         k=args.k,
         progress=not args.quiet,
+        query_builders=(QUERY_BUILDERS if args.query_builders == ["all"] else (args.query_builders or None)),
+        backend=args.backend,
     )
     if not args.quiet:
         k = args.k
