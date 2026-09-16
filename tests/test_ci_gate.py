@@ -77,7 +77,7 @@ class TestCompare:
 
 class TestRunAndCli:
     def test_run_smoke_rules_only(self, tmp_path):
-        data = run_smoke(["rules_v2"], runs_dir=tmp_path / "runs", cache_dir=tmp_path / "cache")
+        data = run_smoke(["rules_v2"], runs_dir=tmp_path / "runs", responses=tmp_path / "r.jsonl")
         s = data["summaries"]["rules_v2"]
         assert s["n_errors"] == 0 and s["iou_mean"] is not None and data["meta"]["n_docs"] == 3
 
@@ -93,8 +93,8 @@ class TestRunAndCli:
                 "--update-baseline",
                 "--runs-dir",
                 str(tmp_path / "r1"),
-                "--cache-dir",
-                str(tmp_path / "c"),
+                "--responses",
+                str(tmp_path / "r.jsonl"),
             ]
         )
         assert rc == 0 and base.exists()
@@ -108,8 +108,8 @@ class TestRunAndCli:
                 str(base),
                 "--runs-dir",
                 str(tmp_path / "r2"),
-                "--cache-dir",
-                str(tmp_path / "c"),
+                "--responses",
+                str(tmp_path / "r.jsonl"),
                 "--summary-out",
                 str(tmp_path / "gate.md"),
             ]
@@ -127,8 +127,8 @@ class TestRunAndCli:
                 str(base),
                 "--runs-dir",
                 str(tmp_path / "r3"),
-                "--cache-dir",
-                str(tmp_path / "c"),
+                "--responses",
+                str(tmp_path / "r.jsonl"),
             ]
         )
         assert rc == 1 and "FAIL" in capsys.readouterr().out
@@ -142,8 +142,8 @@ class TestRunAndCli:
                 str(tmp_path / "none.json"),
                 "--runs-dir",
                 str(tmp_path / "r"),
-                "--cache-dir",
-                str(tmp_path / "c"),
+                "--responses",
+                str(tmp_path / "r.jsonl"),
             ]
         )
         assert rc == 1 and "no baseline" in capsys.readouterr().err

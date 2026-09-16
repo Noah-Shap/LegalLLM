@@ -3,9 +3,11 @@
     legallm-gate                      # compare against evals/ci/smoke_baseline.json (exit 1 on regression)
     legallm-gate --update-baseline    # after an intended change: rewrite the baseline from the current run
 
-The smoke set is ``tests/fixtures/xeval_smoke`` (3 synthetic briefs, labeled) and the LLM responses for it are
-frozen under ``tests/fixtures/xeval_smoke/cache`` (recorded once with ``claude-cli``), so the gate needs no
-credentials and exercises the whole code path after the model: anchor location, validators, routing, IoU vs gold.
+The smoke set is ``tests/fixtures/xeval_smoke`` (3 synthetic briefs, labeled). The raw model responses for it are
+recorded once (``legallm-gate --record --backend claude-cli``) into ``tests/fixtures/xeval_smoke/responses.jsonl``,
+keyed by model + prompt + document, and replayed through the real extractor on every run — so the gate needs no
+credentials yet exercises everything after the model: anchor location, schema parsing, validators, routing, IoU vs
+gold. (A cache of finished extractions would not: a regression in ``locate_span`` passed such a gate unnoticed.)
 Thresholds (D8): span IoU may not drop by more than 2 points, citation fidelity/support by more than 1 point;
 span-found may not drop; no extractor errors. The same command runs on the weekly schedule as the drift check.
 """
@@ -23,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 SMOKE_GOLD = Path("tests/fixtures/xeval_smoke/gold_smoke.jsonl")
-SMOKE_CACHE = Path("tests/fixtures/xeval_smoke/cache")
+SMOKE_RESPONSES = Path("tests/fixtures/xeval_smoke/responses.jsonl")
 DEFAULT_BASELINE = Path("evals/ci/smoke_baseline.json")
 DEFAULT_METHODS = ["rules_v2", "llm-v2", "llm-v3"]
 
@@ -53,32 +55,55 @@ class Check:
         return self.current - self.baseline
 
 
+def build_extractors(store: dict[str, Any], *, record: bool = False, backend: str = "claude-cli") -> dict[str, Any]:
+    """llm-v2 (cheap) and llm-v3 (routed) extractors; model calls are replayed from, or recorded into, ``store``."""
+    from legallm.llm_extractor import LlmConfig, LlmExtractor
+    from legallm.replay import RecordingClient, ReplayClient
+    from legallm.routing import STRONG_MODEL, RouteConfig, Router
+
+    cheap_cfg = LlmConfig(prompt_version="v2", backend=backend)
+    strong_cfg = LlmConfig(prompt_version="v2", backend=backend, model=STRONG_MODEL, effort="high")
+    if record:
+        client: Any = RecordingClient(LlmExtractor(cheap_cfg).client, store)
+    else:
+        client = ReplayClient(store)
+    cheap = LlmExtractor(cheap_cfg, client=client)
+    strong = LlmExtractor(strong_cfg, client=client)
+    router = Router(RouteConfig(backend=backend), cheap=cheap, strong=strong)
+    return {"llm-v2": cheap, "llm-v3": router}
+
+
 def run_smoke(
     methods: list[str],
     *,
     gold: Path = SMOKE_GOLD,
-    cache_dir: Path = SMOKE_CACHE,
+    responses: Path = SMOKE_RESPONSES,
     backend: str = "claude-cli",
     runs_dir: Path | None = None,
-    offline: bool = True,
+    record: bool = False,
 ) -> dict[str, Any]:
-    """Run the smoke eval (offline by default) and return ``summary.json``'s content."""
+    """Run the smoke eval through the real extractors with replayed (or, with ``record``, live+recorded) model calls."""
     from legallm.extraction_eval import run_eval
-    from legallm.llm_extractor import configure_default
+    from legallm.replay import load_responses, save_responses
 
-    configure_default(backend=backend)
+    store = load_responses(responses)
+    extractors = build_extractors(store, record=record, backend=backend)
     rd = runs_dir or Path(tempfile.mkdtemp(prefix="legallm_gate_"))
     out = run_eval(
         gold_path=gold,
         methods=methods,
         subset="all",
         runs_dir=rd,
-        cache_dir=cache_dir,
-        offline=offline,
+        cache_dir=None,
+        extractors={m: fn for m, fn in extractors.items() if m in methods},
         run_label="gate",
     )
+    if record:
+        save_responses(responses, store)
     data: dict[str, Any] = json.loads((out / "summary.json").read_text(encoding="utf-8"))
     data["meta"]["run_dir"] = out.as_posix()
+    data["meta"]["responses"] = Path(responses).as_posix()
+    data["meta"]["n_recordings"] = len(store)
     return data
 
 
@@ -148,9 +173,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
     ap.add_argument("--update-baseline", action="store_true", help="rewrite the baseline from this run and exit 0")
     ap.add_argument("--gold", type=Path, default=SMOKE_GOLD)
-    ap.add_argument("--cache-dir", type=Path, default=SMOKE_CACHE)
-    ap.add_argument("--backend", default="claude-cli", help="backend the cached responses were recorded with")
-    ap.add_argument("--online", action="store_true", help="allow live extractor calls for uncached docs")
+    ap.add_argument("--responses", type=Path, default=SMOKE_RESPONSES, help="recorded model responses (JSONL)")
+    ap.add_argument("--backend", default="claude-cli", help="backend used when recording (--record)")
+    ap.add_argument("--record", action="store_true", help="call the models live and (re)write --responses")
     ap.add_argument("--iou-drop", type=float, default=DEFAULT_THRESHOLDS["iou_mean"])
     ap.add_argument("--fidelity-drop", type=float, default=DEFAULT_THRESHOLDS["citation_fidelity_mean"])
     ap.add_argument("--runs-dir", type=Path, default=None)
@@ -169,10 +194,10 @@ def main(argv: list[str] | None = None) -> int:
     current = run_smoke(
         args.methods,
         gold=args.gold,
-        cache_dir=args.cache_dir,
+        responses=args.responses,
         backend=args.backend,
         runs_dir=args.runs_dir,
-        offline=not args.online,
+        record=args.record,
     )
     if args.update_baseline:
         args.baseline.parent.mkdir(parents=True, exist_ok=True)
