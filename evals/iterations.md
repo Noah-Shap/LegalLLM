@@ -13,6 +13,8 @@ human-labeled documents the IoU column is computed on.
 
 ## Notes
 
+- **2026-09-16 · Plan 1A (query builders) — checkpoint not met.** Same BM25 index and targets, query text from the extraction's structured fields instead of the masked narrative (`downstream.md` of run `labeled-v3_…90b33c`): Recall@10 rises for every llm method (llm-v3 0.145 → 0.163–0.165 for `fields*`/`events`; llm-v2 0.120 → 0.165) and no builder loses to `narrative` on net, but the paired margin is small — best wins − losses = 4 of 31 (llm-v2 `fields`, 5/25/1), under the pre-registered bar of 8. Direction consistent, magnitude below the bar → Phase 1B (symmetric field index, ≈ 6.7 h of model time) is **not run**; the asymmetric result is recorded as a hypothesis, not a finding.
+
 - **2026-09-16 · llm-v3 (routing, item 11)**: 8/120 docs escalated (all `anchor_not_found`), 8/8 recovered a span (7 at IoU ≥ 0.99; g034 0.52 — Opus started at a later heading). IoU 0.912 → 0.975, ≥0.9 share 90.0% → 95.8%; paired vs rules wins 77 / ties 40 / losses 3. Cost +$0.057/doc; downstream target recall vs gold 67.6% → 79.0% at 96.5% precision. The residual gap to gold is now the 10 uncached citations and g034.
 
 - **2026-09-15 · Downstream (item 10)** (`evals/runs/labeled-any_20260915-224235_c0ac4e/downstream.md`): resolved-target precision vs the gold span rules_v2 15.1% / llm-v1 88.5% / llm-v2 95.9%; recall 90.5% / 65.7% / 67.6%. Rules' higher raw resolution rate (42.5% vs 24.2%) is leakage from Argument/TOC text (192 targets on no-facts docs). BM25 Recall@10 on the 31 gold docs with targets: 0.126 / 0.145 / 0.120 (gold span 0.143) — flat; retrieval is bottlenecked by BM25, not by the span.

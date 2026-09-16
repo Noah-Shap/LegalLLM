@@ -80,6 +80,8 @@ def test_record_then_replay_roundtrip(tmp_path):
     save_responses(p, store)
     loaded = load_responses(p)
     assert loaded.keys() == store.keys() and load_responses(tmp_path / "none.jsonl") == {}
+    ex(DOC)  # record-once: the same request is replayed from the store, not re-recorded
+    assert fake.calls == 1 and len(store) == 1
     ex2 = LlmExtractor(LlmConfig(prompt_version="v2", backend="api"), client=ReplayClient(loaded))
     out2 = ex2(DOC)
     assert (out2.facts_span.start, out2.facts_span.end) == (out.facts_span.start, out.facts_span.end)

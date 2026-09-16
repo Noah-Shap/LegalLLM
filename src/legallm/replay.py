@@ -82,6 +82,9 @@ class _RecordingMessages:
     def create(self, **req: Any) -> Any:
         from legallm.llm_extractor import LlmExtractor
 
+        key = request_key(req)
+        if key in self.store:  # record-once: an existing recording is replayed, never re-recorded
+            return response_from(self.store[key])
         res = self.inner.messages.create(**req)
         usage = getattr(res, "usage", None)
         rec: dict[str, Any] = {
@@ -107,7 +110,7 @@ class _RecordingMessages:
 
 
 class RecordingClient:
-    """Wraps a real client; every response is stored under its request key."""
+    """Wraps a real client; a new request is recorded under its key, a known one is replayed (record-once)."""
 
     def __init__(self, inner: Any, store: dict[str, dict[str, Any]]):
         self.messages = _RecordingMessages(inner, store)

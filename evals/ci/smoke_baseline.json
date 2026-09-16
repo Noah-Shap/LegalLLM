@@ -1,5 +1,5 @@
 {
-  "created": "2026-09-16T01:15:20+00:00",
+  "created": "2026-09-16T13:32:22+00:00",
   "gold": "tests/fixtures/xeval_smoke/gold_smoke.jsonl",
   "n_docs": 3,
   "thresholds": {
@@ -26,6 +26,22 @@
       "validation_pass_rate": 0.6667
     },
     "llm-v3": {
+      "iou_mean": 0.9548,
+      "citation_fidelity_mean": 1.0,
+      "citation_support_mean": 1.0,
+      "span_found_rate": 0.6667,
+      "n_errors": 0,
+      "validation_pass_rate": 0.6667
+    },
+    "llm-v4": {
+      "iou_mean": 0.9548,
+      "citation_fidelity_mean": 1.0,
+      "citation_support_mean": 1.0,
+      "span_found_rate": 0.6667,
+      "n_errors": 0,
+      "validation_pass_rate": 0.6667
+    },
+    "llm-v5": {
       "iou_mean": 0.9548,
       "citation_fidelity_mean": 1.0,
       "citation_support_mean": 1.0,

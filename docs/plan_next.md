@@ -39,6 +39,8 @@ is: training briefs' masked narratives. Only the query changes.
 *Checkpoint.* A builder that beats `narrative` on the paired comparison (wins − losses ≥ 8 of 31) earns Phase 1B.
 If nothing does, the conclusion is recorded in `evals/iterations.md` and Phase 1B is skipped.
 
+> **Outcome (2026-09-16): not met.** Every field builder scores above `narrative` (llm-v3 0.145 → 0.163–0.165; llm-v2 0.120 → 0.165) with more wins than losses, but the best margin is 4 of 31 (llm-v2 `fields`, 5 wins / 25 ties / 1 loss). Recorded in `evals/iterations.md`; 1B skipped per this rule. Re-open 1B if Noah wants to spend the model time on the symmetric test despite the weak signal — the manifest builder for the 677 train+test rows is ready.
+
 ### Phase 1B — symmetric field index (≈ 4 h work + ≈ 5.5 h model time)
 
 The asymmetric query in 1A matches fields against narratives. A fair test indexes fields on both sides.

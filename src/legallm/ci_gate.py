@@ -27,7 +27,7 @@ from typing import Any
 SMOKE_GOLD = Path("tests/fixtures/xeval_smoke/gold_smoke.jsonl")
 SMOKE_RESPONSES = Path("tests/fixtures/xeval_smoke/responses.jsonl")
 DEFAULT_BASELINE = Path("evals/ci/smoke_baseline.json")
-DEFAULT_METHODS = ["rules_v2", "llm-v2", "llm-v3"]
+DEFAULT_METHODS = ["rules_v2", "llm-v2", "llm-v3", "llm-v4", "llm-v5"]
 
 # metric -> maximum allowed drop (current must be >= baseline - drop)
 DEFAULT_THRESHOLDS: dict[str, float] = {

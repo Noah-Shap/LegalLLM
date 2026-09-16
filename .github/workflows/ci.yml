@@ -11,7 +11,7 @@ on:
     inputs:
       methods:
         description: "methods for the smoke gate (space-separated)"
-        default: "rules_v2 llm-v2 llm-v3"
+        default: "rules_v2 llm-v2 llm-v3 llm-v4 llm-v5"
 
 jobs:
   lint:
@@ -55,7 +55,7 @@ jobs:
           python-version: "3.13"
       - run: pip install -e ".[dev]"
       - name: smoke regression gate
-        run: legallm-gate --methods ${{ github.event.inputs.methods || 'rules_v2 llm-v2 llm-v3' }} --summary-out gate.md
+        run: legallm-gate --methods ${{ github.event.inputs.methods || 'rules_v2 llm-v2 llm-v3 llm-v4 llm-v5' }} --summary-out gate.md
       - uses: actions/upload-artifact@v4
         if: always()
         with:
