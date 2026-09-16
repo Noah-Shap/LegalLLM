@@ -1,0 +1,84 @@
+{
+  "build_id": "3eac2df033b7",
+  "timestamp_utc": "2026-09-16T13:27:45.865892+00:00",
+  "git_commit": "a43c3acc066d2e797a0ba7b2760c657a99c643d3",
+  "git_dirty": true,
+  "legallm_version": "0.1.0",
+  "python_version": "3.13.14 (tags/v3.13.14:fd17997, Jun 10 2026, 13:03:48) [MSC v.1944 64 bit (AMD64)]",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "parameters": {
+    "gold_path": "evals\\gold\\gold_v1.jsonl",
+    "methods": [
+      "rules_v2",
+      "llm-v2",
+      "llm-v3",
+      "llm-v4",
+      "llm-v5"
+    ],
+    "subset": "labeled",
+    "limit": null,
+    "n_docs": 120,
+    "offline": false
+  },
+  "dependency_versions": {
+    "pandas": "3.0.0",
+    "pypdf": "6.6.2",
+    "PyMuPDF": "1.27.1",
+    "requests": "2.32.5"
+  },
+  "results_summary": {
+    "run_id": "labeled-v5_20260916-132745_3eac2d",
+    "methods": {
+      "rules_v2": {
+        "extractor_version": "rules_v2",
+        "backend": "local",
+        "model_id": null,
+        "prompt_sha": null,
+        "n_docs": 120,
+        "n_gold": 120,
+        "iou_mean": 0.5722,
+        "cost_usd_total": null
+      },
+      "llm-v2": {
+        "extractor_version": "llm-v2",
+        "backend": "claude-cli",
+        "model_id": "claude-sonnet-5",
+        "prompt_sha": "aa4020336ae219ec",
+        "n_docs": 120,
+        "n_gold": 120,
+        "iou_mean": 0.9122,
+        "cost_usd_total": 32.9082
+      },
+      "llm-v3": {
+        "extractor_version": "llm-v3",
+        "backend": "claude-cli",
+        "model_id": "claude-sonnet-5",
+        "prompt_sha": "aa4020336ae219ec",
+        "n_docs": 120,
+        "n_gold": 120,
+        "iou_mean": 0.9747,
+        "cost_usd_total": 39.7685
+      },
+      "llm-v4": {
+        "extractor_version": "llm-v3",
+        "backend": "claude-cli",
+        "model_id": "claude-sonnet-5",
+        "prompt_sha": "59532802dd12b37b",
+        "n_docs": 120,
+        "n_gold": 120,
+        "iou_mean": 0.9534,
+        "cost_usd_total": 48.2871
+      },
+      "llm-v5": {
+        "extractor_version": "llm-v5",
+        "backend": "claude-cli",
+        "model_id": "claude-sonnet-5",
+        "prompt_sha": "59532802dd12b37b",
+        "n_docs": 120,
+        "n_gold": 120,
+        "iou_mean": 0.9784,
+        "cost_usd_total": 51.7749
+      }
+    }
+  }
+}

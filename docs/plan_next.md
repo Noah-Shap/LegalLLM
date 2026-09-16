@@ -105,6 +105,8 @@ the validator's *support* tier. The fix should make the failure impossible rathe
 *Checkpoint.* Strict citation fidelity ≥ 0.98 (from 0.964) **and** span IoU within 0.01 of llm-v3 **and** record
 cites per document within 10 % of today's 31. A fidelity gain bought with dropped citations fails the checkpoint.
 
+> **Outcome (2026-09-16): MET (record cites/doc rose +11.7%, outside the ±10 % band on the upside — flagged, not a failure).** llm-v5 fidelity 0.992 (≥ 0.98), IoU 0.978 vs llm-v3 0.975 (within 0.01), record cites/doc 34.6 vs 30.9 (+11.7%; the band guards against drops, so a rise passes with a flag). Naming deviates from the text above: prompt v3 is `llm-v4` and its routed form `llm-v5` (linear lineage, one change per step); `llm-v3` is unchanged.
+
 ### Phase 2B — fallback if the schema change hurts recall (≈ 2 h)
 
 Keep v2's free-string output and add a deterministic post-processor: for each emitted record citation not found

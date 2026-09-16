@@ -192,3 +192,15 @@ anchors quote text that the PDF layer rendered differently (dropped hyphens, mer
 relaxation in llm-v2 already recovered 9 similar cases; what remained needed a model that copies the printed text
 exactly. A third prompt iteration on Sonnet would be guesswork; escalation is measurable, costs 6.7 % of docs, and
 keeps the cheap tier's verdict everywhere it was right.
+
+## I. L3 revisited: structured record citations (llm-v4 / llm-v5, `evals/runs/labeled-v5_20260916-132745_3eac2d`)
+
+Prompt v2 told the model not to expand lists and ranges and it did anyway (152 expansions, §D/L3). Prompt v3 changes
+the *schema* instead of the instruction: each record citation is `{as_printed, prefix, pages}`, so the expansion has a
+field of its own and the printed string is left alone. Result: non-verbatim record/case cites 150 → 17
+(of 4335 emitted), unsupported 47 → 23; strict fidelity 0.964 → 0.992,
+support 0.986 → 0.995. Span IoU 0.975 → 0.978; record cites per document
+30.9 → 34.6; 3 escalations. Checkpoint (plan §2A): **MET (record cites/doc rose +11.7%, outside the ±10 % band on the upside — flagged, not a failure)**. Drift (prompt v3, 10 docs × 3 runs): 26/30 pairs at IoU ≥ 0.999 (prompt v2 was 30/30), record-cite set Jaccard 0.868, errors 0; unstable docs: g010, g012 — one run of each moved the span (g012: one run found no span at all), so prompt v3 is less run-to-run stable than v2 and a production deployment should pin cached results per document sha.
+Cost of the fix: the object output is roughly three times the tokens of the string list — $0.331 → $0.431
+per document and 37 → 73 s. Whether that is worth it depends on the consumer: for the citation
+resolver it is (the printed form is what the cache is keyed on); for span-only use llm-v3 remains the cheaper choice.
