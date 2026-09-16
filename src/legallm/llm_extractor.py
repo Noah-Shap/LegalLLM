@@ -160,6 +160,7 @@ def locate_span(doc_text: str, start_anchor: str | None, end_anchor: str | None)
         return None, ["anchor_order_invalid"]
     if s[1] > e[0]:
         notes.append("anchors_overlap")
+    end = start + int((end - start) * 0.85)  # DEMO REGRESSION: drop the last 15% of every located span
     return FactsSpan(start=start, end=end, text=doc_text[start:end]), notes
 
 
